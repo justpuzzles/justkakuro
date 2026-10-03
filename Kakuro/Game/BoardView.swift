@@ -209,7 +209,7 @@ struct ClueCellView: View {
     }
 }
 
-struct DiagonalLine: Shape {
+nonisolated struct DiagonalLine: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         path.move(to: CGPoint(x: rect.minX, y: rect.minY))
