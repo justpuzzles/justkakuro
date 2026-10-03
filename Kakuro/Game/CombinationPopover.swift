@@ -62,7 +62,7 @@ struct CombinationPopover: View {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(combinations, id: \.self) { combo in
                         Text(DigitSet.digits(combo).map(String.init).joined(separator: " + "))
-                            .font(Theme.digitFont(size: 17))
+                            .scaledDigitFont(17)
                             .foregroundStyle(Theme.ink)
                     }
                 }

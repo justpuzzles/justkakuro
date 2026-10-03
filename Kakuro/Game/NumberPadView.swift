@@ -56,7 +56,9 @@ struct NumberPadView: View {
                 )
         }
         .buttonStyle(.kakuro)
-        .accessibilityLabel("digit \(digit)")
+        .accessibilityLabel("\(digit)")
+        .accessibilityAddTraits(game.highlightedDigit == digit ? .isSelected : [])
+        .accessibilityHint(game.selected == nil ? "Shows where \(digit) can go" : "")
     }
 
     private func controlKey(symbol: String, label: String, active: Bool = false,
@@ -73,6 +75,7 @@ struct NumberPadView: View {
         }
         .buttonStyle(.kakuro)
         .accessibilityLabel(label)
+        .accessibilityValue(active ? "On" : "Off")
     }
 
     private func wideControlKey(symbol: String, label: String, enabled: Bool,
@@ -81,7 +84,7 @@ struct NumberPadView: View {
             Label(label, systemImage: symbol)
                 .font(.system(.subheadline, weight: .medium))
                 .foregroundStyle(enabled ? Theme.ink : Theme.inkSoft)
-                .frame(maxWidth: .infinity, minHeight: 40)
+                .frame(maxWidth: .infinity, minHeight: 44)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(Theme.surface)

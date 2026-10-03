@@ -9,6 +9,10 @@ struct BoardView: View {
     /// Cells recently completed, for the run sweep (position → stagger index).
     var sweep: [GridPosition: Int] = [:]
     var onTap: ((GridPosition) -> Void)? = nil
+    /// VoiceOver, Switch Control and Voice Control: "Enter 5" and "Clear" on a
+    /// cell without going to the pad. Nil (the lessons) offers no actions, so
+    /// a lesson's input filter can't be walked around.
+    var onAssistiveEdit: ((GridPosition, CellEdit) -> Void)? = nil
     /// tvOS: Select pressed on an already-focused white cell. The screen above
     /// decides what that opens, which keeps the tutorial's input filter intact.
     var onActivate: ((GridPosition) -> Void)? = nil
@@ -111,7 +115,8 @@ struct BoardView: View {
             ClueCellView(across: across, down: down, size: size)
             #else
             reachable(pos) {
-                ClueCellView(across: across, down: down, size: size)
+                ClueCellView(across: across, down: down, size: size,
+                             runs: game.puzzle.runs.filter { $0.clueCell == pos })
             } activate: {
                 (onTap ?? { game.tap($0) })(pos)
             }
@@ -123,7 +128,8 @@ struct BoardView: View {
                     position: pos,
                     size: size,
                     isHighlighted: highlighted.contains(pos),
-                    sweepIndex: sweep[pos]
+                    sweepIndex: sweep[pos],
+                    onAssistiveEdit: onAssistiveEdit
                 )
             } activate: {
                 #if os(tvOS)
@@ -172,6 +178,8 @@ struct ClueCellView: View {
     let across: Int?
     let down: Int?
     let size: CGFloat
+    /// The runs this clue heads, for VoiceOver. Empty in previews.
+    var runs: [Run] = []
 
     var body: some View {
         ZStack {
@@ -198,14 +206,9 @@ struct ClueCellView: View {
         }
         .frame(width: size, height: size)
         .accessibilityElement()
-        .accessibilityLabel(clueAccessibilityLabel)
-    }
-
-    private var clueAccessibilityLabel: String {
-        var parts: [String] = []
-        if let across { parts.append("across sum \(across)") }
-        if let down { parts.append("down sum \(down)") }
-        return parts.isEmpty ? "block" : parts.joined(separator: ", ")
+        .accessibilityLabel(BoardSpeech.clueLabel(across: across, down: down, runs: runs))
+        .accessibilityAddTraits(runs.isEmpty ? [] : .isButton)
+        .accessibilityHint(runs.isEmpty ? "" : "Shows the digit sets that still fit")
     }
 }
 
@@ -225,8 +228,10 @@ struct WhiteCellView: View {
     let size: CGFloat
     let isHighlighted: Bool
     let sweepIndex: Int?
+    var onAssistiveEdit: ((GridPosition, CellEdit) -> Void)? = nil
 
     @State private var entryScale: CGFloat = 1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var entry: Int? { game.board.entry(at: position) }
     private var isSelected: Bool { game.selected == position }
@@ -254,6 +259,9 @@ struct WhiteCellView: View {
         }
         .frame(width: size, height: size)
         .overlay {
+            Rectangle().strokeBorder(Theme.cellEdge, lineWidth: 1)
+        }
+        .overlay {
             if isSelected {
                 // On tvOS this ring is the cursor, seen from across a room, so
                 // it is drawn far heavier than the 2pt hairline a phone needs.
@@ -268,13 +276,27 @@ struct WhiteCellView: View {
         .animation(Motion.runComplete.delay(Double(sweepIndex ?? 0) * Motion.runCompleteStagger),
                    value: sweepIndex)
         .onChange(of: entry) { old, new in
-            guard new != nil, old != new else { return }
+            guard new != nil, old != new, !reduceMotion else { return }
             entryScale = 1.12
             withAnimation(Motion.digitEntry) { entryScale = 1 }
         }
         .accessibilityElement()
-        .accessibilityLabel(accessibilityDescription)
+        .accessibilityLabel(BoardSpeech.position(position).capitalizedFirst)
+        .accessibilityValue(BoardSpeech.cellValue(game, at: position))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .accessibilityHint(isSelected ? "" : "Double-tap to select it for the number pad")
+        .accessibilityActions {
+            if let onAssistiveEdit {
+                ForEach(1...9, id: \.self) { digit in
+                    Button(game.notesMode ? "Note \(digit)" : "Enter \(digit)") {
+                        onAssistiveEdit(position, .digit(digit))
+                    }
+                }
+                if entry != nil || !game.board.notes(at: position).isEmpty {
+                    Button("Clear") { onAssistiveEdit(position, .clear) }
+                }
+            }
+        }
     }
 
     private var background: Color {
@@ -284,13 +306,17 @@ struct WhiteCellView: View {
         if isRelated { return Theme.indigoWash.opacity(0.5) }
         return Theme.surface
     }
+}
 
-    private var accessibilityDescription: String {
-        if let entry { return "row \(position.row), column \(position.col), \(entry)" }
-        let notes = game.board.notes(at: position).sorted()
-        if notes.isEmpty { return "row \(position.row), column \(position.col), empty" }
-        return "row \(position.row), column \(position.col), notes \(notes.map(String.init).joined(separator: " "))"
-    }
+/// An edit made from a cell's accessibility actions.
+enum CellEdit: Equatable {
+    case digit(Int)
+    case clear
+}
+
+extension String {
+    /// "row 2, column 3" → "Row 2, column 3".
+    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }
 
 /// 3x3 pencil-note layout, digits in fixed positions.

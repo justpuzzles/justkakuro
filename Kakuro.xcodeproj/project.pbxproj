@@ -6,7 +6,23 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B7053ED62A8B850C0FA9AF69 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6E58B06737C98F7518E16B46 /* Foundation.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C5AE18CE2F5803E9C4B54005 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7AC24A522E35D8C000111972 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7AC24A592E35D8C000111972;
+			remoteInfo = Kakuro;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		19ED5BCC8A87362E98AADFC0 /* KakuroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KakuroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6E58B06737C98F7518E16B46 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		7AC24A5A2E35D8C000111972 /* Kakuro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kakuro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7AC24A802E35D8C300111972 /* KakuroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KakuroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -14,12 +30,23 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		7AC24A5C2E35D8C000111972 /* Kakuro */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = Kakuro;
 			sourceTree = "<group>";
 		};
 		7AC24A892E35D8C300111972 /* KakuroTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = KakuroTests;
+			sourceTree = "<group>";
+		};
+		E51860435EA30FE717506D7F /* KakuroUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = KakuroUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -39,15 +66,41 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D041D08D0259E1C73E4F9462 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B7053ED62A8B850C0FA9AF69 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		429AD09148B0701ACCE8EA4E /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				6E58B06737C98F7518E16B46 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		6B1078656DABC69B0CE0AFBB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				429AD09148B0701ACCE8EA4E /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		7AC24A512E35D8C000111972 = {
 			isa = PBXGroup;
 			children = (
 				7AC24A5C2E35D8C000111972 /* Kakuro */,
 				7AC24A892E35D8C300111972 /* KakuroTests */,
 				7AC24A5B2E35D8C000111972 /* Products */,
+				6B1078656DABC69B0CE0AFBB /* Frameworks */,
+				E51860435EA30FE717506D7F /* KakuroUITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -56,6 +109,7 @@
 			children = (
 				7AC24A5A2E35D8C000111972 /* Kakuro.app */,
 				7AC24A802E35D8C300111972 /* KakuroTests.xctest */,
+				19ED5BCC8A87362E98AADFC0 /* KakuroUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -63,6 +117,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		2C90073B502F27CFF4B799F8 /* KakuroUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 72CC4A100FE7C2AAC74200FC /* Build configuration list for PBXNativeTarget "KakuroUITests" */;
+			buildPhases = (
+				083942E4482ACA422B0C43B7 /* Sources */,
+				D041D08D0259E1C73E4F9462 /* Frameworks */,
+				403AF8B37B7385B03A461E29 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9280C3D2CA91644A874E959D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				E51860435EA30FE717506D7F /* KakuroUITests */,
+			);
+			name = KakuroUITests;
+			productName = KakuroUITests;
+			productReference = 19ED5BCC8A87362E98AADFC0 /* KakuroUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		7AC24A592E35D8C000111972 /* Kakuro */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 7AC24A662E35D8C100111972 /* Build configuration list for PBXNativeTarget "Kakuro" */;
@@ -79,8 +154,6 @@
 				7AC24A5C2E35D8C000111972 /* Kakuro */,
 			);
 			name = Kakuro;
-			packageProductDependencies = (
-			);
 			productName = Kakuro;
 			productReference = 7AC24A5A2E35D8C000111972 /* Kakuro.app */;
 			productType = "com.apple.product-type.application";
@@ -102,8 +175,6 @@
 				7AC24A892E35D8C300111972 /* KakuroTests */,
 			);
 			name = KakuroTests;
-			packageProductDependencies = (
-			);
 			productName = KakuroTests;
 			productReference = 7AC24A802E35D8C300111972 /* KakuroTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -143,11 +214,19 @@
 			targets = (
 				7AC24A592E35D8C000111972 /* Kakuro */,
 				7AC24A812E35D8C300111972 /* KakuroTests */,
+				2C90073B502F27CFF4B799F8 /* KakuroUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		403AF8B37B7385B03A461E29 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		7AC24A582E35D8C000111972 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -165,6 +244,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		083942E4482ACA422B0C43B7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		7AC24A562E35D8C000111972 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -186,9 +272,34 @@
 			isa = PBXTargetDependency;
 			target = 7AC24A592E35D8C000111972 /* Kakuro */;
 		};
+		9280C3D2CA91644A874E959D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = Kakuro;
+			target = 7AC24A592E35D8C000111972 /* Kakuro */;
+			targetProxy = C5AE18CE2F5803E9C4B54005 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		37E2132265E5BBFEA418DF16 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 8H42EZRCCP;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.kaikunze.kakuroUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Kakuro;
+			};
+			name = Debug;
+		};
 		7AC24A642E35D8C100111972 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -312,12 +423,13 @@
 		7AC24A672E35D8C100111972 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvos*]" = TVAppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvsimulator*]" = TVAppIcon;
 				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=xros*]" = VisionAppIcon;
 				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=xrsimulator*]" = VisionAppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvsimulator*]" = TVAppIcon;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Kakuro-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 8H42EZRCCP;
@@ -337,11 +449,8 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Kakuro-macOS.entitlements";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				TVOS_DEPLOYMENT_TARGET = 17.0;
-				XROS_DEPLOYMENT_TARGET = 2.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = de.kaikunze.kakuro;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -349,23 +458,26 @@
 				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				"TARGETED_DEVICE_FAMILY[sdk=appletvos*]" = 3;
+				"TARGETED_DEVICE_FAMILY[sdk=appletvsimulator*]" = 3;
 				"TARGETED_DEVICE_FAMILY[sdk=xros*]" = 7;
 				"TARGETED_DEVICE_FAMILY[sdk=xrsimulator*]" = 7;
-				"TARGETED_DEVICE_FAMILY[sdk=appletvsimulator*]" = 3;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Debug;
 		};
 		7AC24A682E35D8C100111972 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvos*]" = TVAppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvsimulator*]" = TVAppIcon;
 				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=xros*]" = VisionAppIcon;
 				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=xrsimulator*]" = VisionAppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletvsimulator*]" = TVAppIcon;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Kakuro-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 8H42EZRCCP;
@@ -385,11 +497,8 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Kakuro-macOS.entitlements";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				TVOS_DEPLOYMENT_TARGET = 17.0;
-				XROS_DEPLOYMENT_TARGET = 2.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = de.kaikunze.kakuro;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -397,11 +506,13 @@
 				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				"TARGETED_DEVICE_FAMILY[sdk=appletvos*]" = 3;
+				"TARGETED_DEVICE_FAMILY[sdk=appletvsimulator*]" = 3;
 				"TARGETED_DEVICE_FAMILY[sdk=xros*]" = 7;
 				"TARGETED_DEVICE_FAMILY[sdk=xrsimulator*]" = 7;
-				"TARGETED_DEVICE_FAMILY[sdk=appletvsimulator*]" = 3;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Release;
 		};
@@ -447,9 +558,38 @@
 			};
 			name = Release;
 		};
+		A42CD2F25FBEC3EF6828FB17 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 8H42EZRCCP;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.kaikunze.kakuroUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Kakuro;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		72CC4A100FE7C2AAC74200FC /* Build configuration list for PBXNativeTarget "KakuroUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A42CD2F25FBEC3EF6828FB17 /* Release */,
+				37E2132265E5BBFEA418DF16 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		7AC24A552E35D8C000111972 /* Build configuration list for PBXProject "Kakuro" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

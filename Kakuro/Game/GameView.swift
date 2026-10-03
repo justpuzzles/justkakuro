@@ -9,6 +9,7 @@ struct GameView: View {
     @Environment(PaywallPresenter.self) private var paywall
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var hint: Hint?
     @State private var hintEngine = HintEngine()
@@ -85,6 +86,14 @@ struct GameView: View {
                     time: game.elapsed)
                 Haptics.win()
                 showWinSheet = true
+                let spoken = "Solved in \(TimeFormatting.spoken(game.elapsed))"
+                    + (newBestTime ? ", a new best time." : ".")
+                Task {
+                    // After the sheet takes focus, or its own focus change
+                    // cuts the announcement off.
+                    try? await Task.sleep(for: .seconds(0.8))
+                    BoardSpeech.announce(spoken)
+                }
             } else {
                 progress.saveGame(game.snapshot)
             }
@@ -136,7 +145,7 @@ struct GameView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 4)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 #if os(tvOS)
                 // Its own section, so focus can leave the banner and return to
                 // the board rather than being caught by whichever of its four
@@ -146,6 +155,12 @@ struct GameView: View {
             }
         }
         .animation(Motion.overlay, value: hint != nil)
+        // Every rung, not just the first: "Tell me more" changes the text
+        // in place, which VoiceOver doesn't notice on its own.
+        .onChange(of: hint) { _, hint in
+            guard let hint else { return }
+            BoardSpeech.announce(BoardSpeech.spokenHint(hint, puzzle: game.puzzle))
+        }
     }
 
     // MARK: - Layout
@@ -268,6 +283,7 @@ struct GameView: View {
     private var boardSection: some View {
         BoardView(game: game, highlighted: hintHighlights, sweep: sweep,
                   onTap: { pos in handleTap(pos) },
+                  onAssistiveEdit: { pos, edit in assistiveEdit(pos, edit) },
                   onActivate: { _ in
                       #if os(tvOS)
                       choosingDigit = true
@@ -371,13 +387,20 @@ struct GameView: View {
         }
         // Run-completion sweep.
         var completed: [GridPosition: Int] = [:]
+        var completedRuns: [Run] = []
         for run in game.puzzle.runs where game.isRunComplete(run) {
             let wasComplete = run.cells.allSatisfy { old[$0] != nil }
             if !wasComplete {
+                completedRuns.append(run)
                 for (index, cell) in run.cells.enumerated() {
                     completed[cell] = index
                 }
             }
+        }
+        if game.phase != .won,
+           let spoken = BoardSpeech.entriesChanged(old: old, new: new, completed: completedRuns,
+                                                   puzzle: game.puzzle) {
+            BoardSpeech.announce(spoken)
         }
         if !completed.isEmpty {
             Haptics.runComplete()
@@ -390,6 +413,33 @@ struct GameView: View {
         hint = nil
     }
 
+    /// A cell's accessibility action. Digits go through the same calls as the
+    /// pad; entries are announced by `handleEntriesChange`, notes here.
+    private func assistiveEdit(_ pos: GridPosition, _ edit: CellEdit) {
+        guard game.phase == .playing else { return }
+        switch edit {
+        case .digit(let digit) where game.notesMode:
+            guard game.board.entry(at: pos) == nil else {
+                BoardSpeech.announce("This cell holds a digit. Clear it before adding notes.")
+                return
+            }
+            let had = game.board.notes(at: pos).contains(digit)
+            game.toggleNote(digit, at: pos)
+            BoardSpeech.announce(had ? "Note \(digit) removed" : "Note \(digit) added")
+        case .digit(let digit):
+            game.place(digit, at: pos)
+        case .clear:
+            if game.board.entry(at: pos) != nil {
+                game.clear(at: pos)
+            } else {
+                game.selected = pos
+                game.clearSelected()
+                BoardSpeech.announce("Notes cleared")
+            }
+        }
+        Haptics.tap()
+    }
+
     // MARK: - Win
 
     private var winSheet: some View {
@@ -398,7 +448,8 @@ struct GameView: View {
                 .font(Theme.title)
                 .foregroundStyle(Theme.ink)
             Text(formatTime(game.elapsed))
-                .font(Theme.digitFont(size: 40))
+                .scaledDigitFont(40, relativeTo: .largeTitle)
+                .accessibilityLabel(TimeFormatting.spoken(game.elapsed))
                 .foregroundStyle(Theme.indigo)
             // Taken from recordSolve rather than re-derived by comparing against
             // a store that has already been updated: on an exact tie the old

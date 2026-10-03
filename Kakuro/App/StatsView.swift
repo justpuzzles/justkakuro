@@ -50,7 +50,7 @@ struct StatsView: View {
     private func stat(value: String, label: String) -> some View {
         VStack(spacing: 4) {
             Text(value)
-                .font(Theme.digitFont(size: 24))
+                .scaledDigitFont(24, relativeTo: .title2)
                 .foregroundStyle(Theme.ink)
             Text(label)
                 .font(.caption)

@@ -147,7 +147,7 @@ struct HomeView: View {
         Button {
             path.append(.resumeGame)
         } label: {
-            HStack {
+            CardRow {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Continue")
                         .font(Theme.heading)
@@ -160,8 +160,9 @@ struct HomeView: View {
                 }
                 Spacer()
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 18, weight: .medium))
+                    .scaledFont(18, weight: .medium)
                     .foregroundStyle(Theme.indigo)
+                    .accessibilityHidden(true)
             }
             .padding(18)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.surface))
@@ -287,8 +288,9 @@ struct HomeView: View {
         } label: {
             VStack(spacing: 8) {
                 Image(systemName: symbol)
-                    .font(.system(size: 22, weight: .medium))
+                    .scaledFont(22, weight: .medium, relativeTo: .title2)
                     .foregroundStyle(Theme.indigo)
+                    .accessibilityHidden(true)
                 Text(title)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.ink)
@@ -305,6 +307,7 @@ struct HomeView: View {
             }
         }
         .buttonStyle(.kakuro)
+        .accessibilityValue(paywalled ? "Locked, part of the full game" : "")
     }
 
     private func formatTime(_ interval: TimeInterval) -> String {

@@ -38,6 +38,16 @@
                ReferencedContainer = "container:Kakuro.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "2C90073B502F27CFF4B799F8"
+               BuildableName = "KakuroUITests.xctest"
+               BlueprintName = "KakuroUITests"
+               ReferencedContainer = "container:Kakuro.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

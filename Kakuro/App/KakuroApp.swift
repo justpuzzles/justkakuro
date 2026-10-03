@@ -9,6 +9,15 @@ struct KakuroApp: App {
     @State private var paywall = PaywallPresenter()
 
     init() {
+        #if DEBUG
+        // UI tests and accessibility audits start from a fresh install, or
+        // they inherit a saved game and stray state. DEBUG only, string
+        // included, like the unlock flag below.
+        if ProcessInfo.processInfo.arguments.contains("-uiTestResetState"),
+           let domain = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: domain)
+        }
+        #endif
         let store = ProgressStore()
         _progress = State(initialValue: store)
         _mastery = State(initialValue: MasteryTracker(store: store))

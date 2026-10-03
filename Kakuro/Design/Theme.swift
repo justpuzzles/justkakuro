@@ -63,27 +63,35 @@ nonisolated enum Theme {
     /// Graphite ink for entered digits and primary text.
     static let ink = dynamic(light: ThemeRGBA(red: 0.133, green: 0.149, blue: 0.169, alpha: 1),
                              dark: ThemeRGBA(red: 0.910, green: 0.914, blue: 0.894, alpha: 1))
-    /// Secondary text, notes, quiet labels.
-    static let inkSoft = dynamic(light: ThemeRGBA(red: 0.133, green: 0.149, blue: 0.169, alpha: 0.55),
-                                 dark: ThemeRGBA(red: 0.910, green: 0.914, blue: 0.894, alpha: 0.55))
+    /// Secondary text, notes, quiet labels. The alphas are the lowest that
+    /// keep 4.5:1 everywhere this sits, notes on the selected wash included
+    /// (docs/ACCESSIBILITY.md; 0.55 measured 3.3–3.9).
+    static let inkSoft = dynamic(light: ThemeRGBA(red: 0.133, green: 0.149, blue: 0.169, alpha: 0.70),
+                                 dark: ThemeRGBA(red: 0.910, green: 0.914, blue: 0.894, alpha: 0.75))
     /// Block cells: deep indigo-charcoal, the "filled ink" of the grid.
     static let block = dynamic(light: ThemeRGBA(red: 0.169, green: 0.196, blue: 0.251, alpha: 1),
                                dark: ThemeRGBA(red: 0.035, green: 0.041, blue: 0.055, alpha: 1))
     /// Clue numerals on block cells.
     static let clueText = dynamic(light: ThemeRGBA(red: 0.949, green: 0.953, blue: 0.933, alpha: 0.92),
                                   dark: ThemeRGBA(red: 0.910, green: 0.914, blue: 0.894, alpha: 0.80))
-    /// Indigo: selection, interactive tint, focus.
+    /// Indigo: selection, interactive tint, focus. Dark lifted so indigo text
+    /// on `surface` reaches 4.5:1 (it was 3.8).
     static let indigo = dynamic(light: ThemeRGBA(red: 0.231, green: 0.357, blue: 0.647, alpha: 1),
-                                dark: ThemeRGBA(red: 0.486, green: 0.592, blue: 0.847, alpha: 1))
+                                dark: ThemeRGBA(red: 0.589, green: 0.674, blue: 0.878, alpha: 1))
     /// Soft indigo wash for selected/related cells.
     static let indigoWash = dynamic(light: ThemeRGBA(red: 0.231, green: 0.357, blue: 0.647, alpha: 0.14),
                                     dark: ThemeRGBA(red: 0.486, green: 0.592, blue: 0.847, alpha: 0.20))
     /// Seal red, reserved for errors only.
     static let error = dynamic(light: ThemeRGBA(red: 0.769, green: 0.263, blue: 0.220, alpha: 1),
-                               dark: ThemeRGBA(red: 0.898, green: 0.451, blue: 0.404, alpha: 1))
+                               dark: ThemeRGBA(red: 0.918, green: 0.561, blue: 0.523, alpha: 1))
     /// Success/completion sweep tint.
-    static let complete = dynamic(light: ThemeRGBA(red: 0.282, green: 0.522, blue: 0.416, alpha: 1),
-                                  dark: ThemeRGBA(red: 0.463, green: 0.702, blue: 0.588, alpha: 1))
+    static let complete = dynamic(light: ThemeRGBA(red: 0.254, green: 0.470, blue: 0.374, alpha: 1),
+                                  dark: ThemeRGBA(red: 0.517, green: 0.732, blue: 0.629, alpha: 1))
+    /// Dark only: the edge of a playable cell. Dark `surface` against `block`
+    /// is 1.8:1, too close to tell playable from blocked at a glance; this
+    /// edge is 4:1 against `block`. Light needs none (13:1).
+    static let cellEdge = dynamic(light: ThemeRGBA(red: 1, green: 1, blue: 1, alpha: 0),
+                                  dark: ThemeRGBA(red: 0.910, green: 0.914, blue: 0.894, alpha: 0.28))
     /// Hairlines and grid lines.
     static let hairline = dynamic(light: ThemeRGBA(red: 0.133, green: 0.149, blue: 0.169, alpha: 0.16),
                                   dark: ThemeRGBA(red: 0.910, green: 0.914, blue: 0.894, alpha: 0.14))

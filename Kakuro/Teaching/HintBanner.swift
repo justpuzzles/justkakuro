@@ -45,6 +45,8 @@ struct HintBanner: View {
                         Text("Unlock hints")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Theme.indigo)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.kakuro)
                 } else if hint.level < .resolution {
@@ -52,6 +54,8 @@ struct HintBanner: View {
                         Text("Tell me more")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(Theme.indigo)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.kakuro)
                 }
@@ -64,6 +68,8 @@ struct HintBanner: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .background(Capsule().fill(Theme.indigo))
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.kakuro)
                 }
@@ -85,6 +91,8 @@ struct HintBanner: View {
             Image(systemName: "xmark")
                 .font(.system(size: Metrics.glyph, weight: .semibold))
                 .foregroundStyle(Theme.inkSoft)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.kakuro)
         .accessibilityLabel("Dismiss hint")

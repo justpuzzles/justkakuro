@@ -51,7 +51,7 @@ struct LearnMenuView: View {
                     Text(info.summary)
                         .font(.footnote)
                         .foregroundStyle(Theme.inkSoft)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
                 if paywalled {
@@ -68,7 +68,6 @@ struct LearnMenuView: View {
             }
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.surface))
-            .opacity(dimmed ? 0.6 : 1)
         }
         .buttonStyle(.kakuro)
         .disabled(masteryLocked)
@@ -178,7 +177,6 @@ struct PracticeMenuView: View {
             }
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.surface))
-            .opacity(dimmed ? 0.6 : 1)
         }
         .buttonStyle(.kakuro)
         .disabled(masteryLocked)

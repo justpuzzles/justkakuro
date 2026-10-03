@@ -201,16 +201,19 @@ struct TutorialPadView: View {
             }
             .buttonStyle(.kakuro)
             .accessibilityLabel("Notes")
+            .accessibilityValue(engine.game.notesMode ? "On" : "Off")
         }
     }
 }
 
 struct WiggleEffect: ViewModifier {
     let active: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content
-            .offset(x: active ? -6 : 0)
+            // Under Reduce Motion the lesson's message alone says "not there".
+            .offset(x: active && !reduceMotion ? -6 : 0)
             .animation(active
                        ? .spring(response: 0.12, dampingFraction: 0.3)
                        : .default, value: active)
