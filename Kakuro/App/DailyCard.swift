@@ -8,6 +8,10 @@ struct DailyCard: View {
     let onPlay: () -> Void
     @Environment(ProgressStore.self) private var progress
 
+    /// The badge, arrow and seal are fixed sizes tuned for a phone; on tvOS
+    /// they scale with `Metrics.glyph` so they read from the sofa.
+    private let k = Metrics.glyph / 13
+
     private var spec: (size: BoardSize, difficulty: Difficulty) {
         DailySeed.spec(for: today)
     }
@@ -51,14 +55,14 @@ struct DailyCard: View {
         HStack(spacing: 6) {
             if streak > 0 {
                 Image(systemName: "flame.fill")
-                    .scaledFont(17, weight: .semibold)
+                    .scaledFont(17 * k, weight: .semibold)
                     .foregroundStyle(Theme.indigo)
                 Text("\(streak)")
-                    .scaledDigitFont(18)
+                    .scaledDigitFont(18 * k)
                     .foregroundStyle(Theme.ink)
             }
             Image(systemName: "arrow.right")
-                .scaledFont(18, weight: .medium)
+                .scaledFont(18 * k, weight: .medium)
                 .foregroundStyle(Theme.indigo)
         }
     }
@@ -68,7 +72,7 @@ struct DailyCard: View {
     private func doneSeal(_ time: TimeInterval) -> some View {
         HStack(spacing: 10) {
             Text(TimeFormatting.clock(time))
-                .scaledDigitFont(16)
+                .scaledDigitFont(16 * k)
                 .foregroundStyle(Theme.inkSoft)
             ZStack {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -77,11 +81,11 @@ struct DailyCard: View {
                     .stroke(Theme.clueText, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                     .padding(5)
                 Image(systemName: "checkmark")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 11 * k, weight: .bold))
                     .foregroundStyle(Theme.clueText)
-                    .offset(x: 5, y: -5)
+                    .offset(x: 5 * k, y: -5 * k)
             }
-            .frame(width: 28, height: 28)
+            .frame(width: 28 * k, height: 28 * k)
         }
     }
 

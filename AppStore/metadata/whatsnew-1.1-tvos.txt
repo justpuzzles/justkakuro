@@ -1,0 +1,3 @@
+A new Kakuro every day. The Daily card on Home has the same puzzle for everyone: small boards early in the week, medium ones midweek, and a large board every Saturday and Sunday, free whether or not you have unlocked the full game. Solve it on consecutive days to build a streak; Stats shows your current and best streak for free.
+
+The timer now pauses the moment you leave a board, so time away is never counted against you.

@@ -180,7 +180,8 @@ struct HomeView: View {
                 }
                 Spacer()
                 Image(systemName: "arrow.right")
-                    .scaledFont(18, weight: .medium)
+                    // Doubled on tvOS with the other glyphs (Metrics.glyph).
+                    .scaledFont(18 * Metrics.glyph / 13, weight: .medium)
                     .foregroundStyle(Theme.indigo)
                     .accessibilityHidden(true)
             }
