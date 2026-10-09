@@ -38,9 +38,10 @@ struct DailyCard: View {
             )
         }
         .buttonStyle(.kakuro)
-        .accessibilityElement(children: .ignore)
+        // A label on the Button itself, not `.accessibilityElement(children:
+        // .ignore)`: that replaces the button's element with one that has no
+        // press action, so VoiceOver on the Mac could not open the Daily.
         .accessibilityLabel(accessibilityText)
-        .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("dailyCard")
     }
 

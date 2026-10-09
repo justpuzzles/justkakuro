@@ -38,6 +38,15 @@ audit runs on iPhone; every change was built for all five platforms.
 
 - **Board, clue and pad digits** are sized to their cells and keys. They are
   filtered in the audit by label. VoiceOver reads every cell in full.
+- **Contrast reports on clue numbers on the Daily's medium board** (1.1,
+  `testDaily`). Measured in a screenshot, a clue reads 10.0:1 against its
+  block, (226,228,224) on (43,50,64). The audit flags them only at the
+  medium board's clue size, about 12 pt; the small board passes in
+  `testBoard`. Filtered on that screen only, and only for numeric labels.
+- **Mac: the Daily card must keep its Button's own element** (1.1). Wrapping
+  it in `.accessibilityElement(children: .ignore)` dropped the press action
+  on macOS, so AXPress (and VoiceOver) could not open the Daily while iOS,
+  which taps the centre, worked. The label now goes on the Button.
 - **Unattributed Dynamic Type reports with the hint banner up.** The same
   board passes in `testBoard`, where the audit can attribute the digits.
   These are filtered on the hint screen only, and only when no element is

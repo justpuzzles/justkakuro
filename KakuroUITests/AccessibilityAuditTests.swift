@@ -19,6 +19,10 @@ final class AccessibilityAuditTests: XCTestCase {
     /// cell-sized digits without an element (the same board passes in
     /// `testBoard`, where it can attribute them).
     private var acceptUnattributedBoardDigits = false
+    /// Set on the Daily's medium board: the audit fails clue numbers at that
+    /// cell size on contrast, though they measure 10:1 against the block in a
+    /// screenshot (docs/ACCESSIBILITY.md). Small boards pass the same check.
+    private var acceptClueNumberContrast = false
 
     private func audit() throws {
         try app.performAccessibilityAudit { issue in
@@ -32,6 +36,8 @@ final class AccessibilityAuditTests: XCTestCase {
                 || (!label.isEmpty && label.allSatisfy(\.isNumber))
                 || (label.count == 1 && label.first?.isNumber == true) { return true }
             if self.acceptUnattributedBoardDigits, issue.element == nil, issue.auditType == .dynamicType { return true }
+            if self.acceptClueNumberContrast, issue.auditType == .contrast,
+               let label = issue.element?.label, !label.isEmpty, label.allSatisfy(\.isNumber) { return true }
             if self.acceptListFalsePositives, [.dynamicType, .textClipped].contains(issue.auditType) { return true }
             return false
         }
@@ -57,6 +63,22 @@ final class AccessibilityAuditTests: XCTestCase {
             .matching(NSPredicate(format: "label BEGINSWITH 'Row '")).firstMatch
         XCTAssertTrue((cell.value as? String)?.contains(" in ") == true,
                       "a cell names its runs")
+        try audit()
+    }
+
+    /// The Daily card opens today's board, labelled as the Daily.
+    func testDaily() throws {
+        app.launch()
+        let card = app.buttons["dailyCard"]
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        XCTAssertTrue(card.label.hasPrefix("Daily puzzle"), "the card says what it is")
+        card.tap()
+        let cell = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH 'Row '")).firstMatch
+        XCTAssertTrue(cell.waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Daily'"))
+            .firstMatch.exists, "the status row names the Daily")
+        acceptClueNumberContrast = true
         try audit()
     }
 
