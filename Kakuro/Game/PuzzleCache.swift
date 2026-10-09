@@ -1,8 +1,9 @@
 import Foundation
 import Observation
 
-/// Pre-generates the next puzzle per (size, difficulty) off the main actor so
-/// starting a game rarely blocks on generation.
+/// Pre-generates the next puzzle per key — a (size, difficulty) pair or a
+/// day's daily — off the main actor so starting a game rarely blocks on
+/// generation.
 ///
 /// The table holds **tasks, not finished puzzles**. That is the whole design:
 /// a request for a key that is already generating simply awaits that task, so
@@ -12,9 +13,20 @@ import Observation
 @Observable @MainActor
 final class PuzzleCache {
 
-    struct CacheKey: Hashable {
-        let size: BoardSize
-        let difficulty: Difficulty
+    enum CacheKey: Hashable {
+        case standard(BoardSize, Difficulty)
+        case daily(DayKey)
+
+        var options: KakuroGenerator.Options {
+            switch self {
+            case let .standard(size, difficulty):
+                KakuroGenerator.Options(size: size, difficulty: difficulty)
+            case let .daily(day):
+                KakuroGenerator.Options(size: DailySeed.spec(for: day).size,
+                                        difficulty: DailySeed.spec(for: day).difficulty,
+                                        seed: DailySeed.seed(for: day))
+            }
+        }
     }
 
     /// A `final class` because identity matters: a late-finishing task must not
@@ -50,8 +62,7 @@ final class PuzzleCache {
     /// unclaimed* generation. At most one speculative generation runs at a
     /// time: nine concurrent ones would starve the cooperative pool and make
     /// the board the player is actually waiting for slower.
-    func warm(size: BoardSize, difficulty: Difficulty) {
-        let key = CacheKey(size: size, difficulty: difficulty)
+    func warm(_ key: CacheKey) {
         for (other, entry) in entries where other != key && !entry.isClaimed {
             entry.task.cancel()
             entries.removeValue(forKey: other)
@@ -61,8 +72,7 @@ final class PuzzleCache {
     }
 
     /// Claims this key, starting a generation only if none is running.
-    func request(size: BoardSize, difficulty: Difficulty) -> PuzzleRequest {
-        let key = CacheKey(size: size, difficulty: difficulty)
+    func request(_ key: CacheKey) -> PuzzleRequest {
         let entry: Entry
         if let existing = entries[key] {
             entry = existing
@@ -79,8 +89,20 @@ final class PuzzleCache {
     /// Whether a generation for this key is running or already finished.
     /// Exists so tests can assert cache state directly instead of inferring it
     /// from how many times the generator happened to have been called.
+    func isWarm(_ key: CacheKey) -> Bool {
+        entries[key] != nil
+    }
+
+    func warm(size: BoardSize, difficulty: Difficulty) {
+        warm(.standard(size, difficulty))
+    }
+
+    func request(size: BoardSize, difficulty: Difficulty) -> PuzzleRequest {
+        request(.standard(size, difficulty))
+    }
+
     func isWarm(size: BoardSize, difficulty: Difficulty) -> Bool {
-        entries[CacheKey(size: size, difficulty: difficulty)] != nil
+        isWarm(.standard(size, difficulty))
     }
 
     // MARK: - Internals
@@ -88,7 +110,7 @@ final class PuzzleCache {
     private func makeEntry(_ key: CacheKey, priority: TaskPriority) -> Entry {
         let (stream, continuation) = AsyncStream.makeStream(
             of: Double.self, bufferingPolicy: .bufferingNewest(1))
-        let options = KakuroGenerator.Options(size: key.size, difficulty: key.difficulty)
+        let options = key.options
         let generate = self.generate
         // Detached, so `Task.isCancelled` inside refers to the same task the
         // consumer cancels — no nesting, no second cancellation hop.
@@ -114,11 +136,15 @@ final class PuzzleCache {
     /// comes. Cancelled entries are dropped without re-warming; the player
     /// backed out, so speculatively rebuilding the board they abandoned is
     /// exactly the work we just cancelled.
+    ///
+    /// A daily is never re-warmed: its next request is the same seed and the
+    /// same board, already in the player's save slot, and warming it would
+    /// cancel the standard key Home is keeping hot.
     private func settle(_ key: CacheKey, entry: Entry, cancelled: Bool) {
         guard entries[key] === entry else { return }
         entries.removeValue(forKey: key)
-        guard !cancelled else { return }
-        warm(size: key.size, difficulty: key.difficulty)
+        guard !cancelled, case .standard = key else { return }
+        warm(key)
     }
 }
 

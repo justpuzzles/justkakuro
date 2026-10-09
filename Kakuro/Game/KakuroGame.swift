@@ -39,9 +39,15 @@ final class KakuroGame {
     /// The difficulty a solve should be filed under.
     var difficultyForRecords: Difficulty { requestedDifficulty ?? generated.difficulty }
 
-    init(puzzle: GeneratedPuzzle, requestedDifficulty: Difficulty? = nil) {
+    /// The day this board is the daily for, or nil for an ordinary game.
+    /// Carried through the save so a resumed daily still counts for the streak.
+    let dailyKey: DayKey?
+
+    init(puzzle: GeneratedPuzzle, requestedDifficulty: Difficulty? = nil,
+         dailyKey: DayKey? = nil) {
         self.generated = puzzle
         self.requestedDifficulty = requestedDifficulty
+        self.dailyKey = dailyKey
     }
 
     // MARK: - Input
@@ -307,16 +313,20 @@ final class KakuroGame {
         /// Optional for backward compatibility with saves written before this
         /// field existed.
         var requestedDifficulty: Difficulty?
+        /// Optional for the same reason: saves from 1.0 have no daily.
+        var dailyKey: DayKey?
     }
 
     var snapshot: Snapshot {
         Snapshot(generated: generated, board: board, undoStack: undoStack,
-                 elapsed: elapsed, requestedDifficulty: requestedDifficulty)
+                 elapsed: elapsed, requestedDifficulty: requestedDifficulty,
+                 dailyKey: dailyKey)
     }
 
     convenience init(snapshot: Snapshot) {
         self.init(puzzle: snapshot.generated,
-                  requestedDifficulty: snapshot.requestedDifficulty)
+                  requestedDifficulty: snapshot.requestedDifficulty,
+                  dailyKey: snapshot.dailyKey)
         board = snapshot.board
         undoStack = snapshot.undoStack
         elapsed = snapshot.elapsed

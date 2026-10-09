@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 
-/// All persisted progress: settings, best times, stats, mastery, and the
-/// in-progress game. UserDefaults + Codable with versioned keys.
+/// All persisted progress: settings, best times, stats, mastery, the daily
+/// streak, and the in-progress game. UserDefaults + Codable with versioned keys.
 @Observable @MainActor
 final class ProgressStore {
     private let defaults: UserDefaults
@@ -14,6 +14,7 @@ final class ProgressStore {
         static let mastery = "kakuro.mastery.v1"
         static let settings = "kakuro.settings.v1"
         static let lastPlayed = "kakuro.lastPlayed.v1"
+        static let daily = "kakuro.daily.v1"
     }
 
     /// The size/difficulty the player last started a game with, so the pickers
@@ -42,6 +43,15 @@ final class ProgressStore {
         let difficulty: Difficulty
     }
 
+    /// The daily-puzzle record. `completedTimes` is keyed by `DayKey.isoString`
+    /// so the JSON stays readable and time-zone-free.
+    struct DailyRecord: Codable, Equatable {
+        var lastCompleted: DayKey?
+        var currentStreak = 0
+        var bestStreak = 0
+        var completedTimes: [String: TimeInterval] = [:]
+    }
+
     private(set) var bestTimes: [BestTimeKey: TimeInterval] = [:]
     private(set) var stats = Stats()
     /// Mirrors the persisted save. Held as observable state rather than re-read
@@ -49,6 +59,7 @@ final class ProgressStore {
     /// reading UserDefaults inside a view body never invalidates it.
     private(set) var savedGame: KakuroGame.Snapshot?
     private(set) var lastPlayed: GameChoice?
+    private(set) var daily = DailyRecord()
     var settings = Settings() {
         didSet { save(settings, key: Key.settings) }
     }
@@ -60,6 +71,7 @@ final class ProgressStore {
         settings = load(Settings.self, key: Key.settings) ?? Settings()
         savedGame = load(KakuroGame.Snapshot.self, key: Key.saveGame)
         lastPlayed = load(GameChoice.self, key: Key.lastPlayed)
+        daily = load(DailyRecord.self, key: Key.daily) ?? DailyRecord()
     }
 
     /// Records the *requested* size/difficulty for a new game.
@@ -92,6 +104,49 @@ final class ProgressStore {
             save(bestTimes, key: Key.bestTimes)
         }
         return isRecord
+    }
+
+    // MARK: - Daily streak
+
+    func hasCompletedDaily(_ day: DayKey) -> Bool {
+        daily.completedTimes[day.isoString] != nil
+    }
+
+    func dailyTime(_ day: DayKey) -> TimeInterval? {
+        daily.completedTimes[day.isoString]
+    }
+
+    /// True when yesterday's daily kept the streak alive and today's is still
+    /// open — the streak ends at midnight unless today is solved.
+    func streakIsAtRisk(today: DayKey) -> Bool {
+        daily.currentStreak > 0
+            && daily.lastCompleted == today.previous()
+            && !hasCompletedDaily(today)
+    }
+
+    /// The streak as of `today`. Computed, never stored: a missed day shows 0
+    /// without anything having to run at midnight.
+    func displayStreak(today: DayKey) -> Int {
+        guard let last = daily.lastCompleted else { return 0 }
+        if last == today || last == today.previous() { return daily.currentStreak }
+        return 0
+    }
+
+    /// Records a completed daily. Idempotent per day; increments on
+    /// consecutive days and restarts at 1 after a gap. `lastCompleted` only
+    /// moves forward, so finishing an older saved daily late can't rewind it.
+    func recordDailyCompleted(day: DayKey, time: TimeInterval) {
+        guard !hasCompletedDaily(day) else { return }
+        daily.completedTimes[day.isoString] = time
+        if let last = daily.lastCompleted, !(last < day) {
+            // An older day finished after a newer one: record the time only.
+            save(daily, key: Key.daily)
+            return
+        }
+        daily.currentStreak = daily.lastCompleted == day.previous() ? daily.currentStreak + 1 : 1
+        daily.lastCompleted = day
+        daily.bestStreak = max(daily.bestStreak, daily.currentStreak)
+        save(daily, key: Key.daily)
     }
 
     // MARK: - Save game

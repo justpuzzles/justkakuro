@@ -63,4 +63,27 @@ nonisolated enum FeatureGate {
     static func isAvailable(_ feature: PaidFeature, unlocked: Bool) -> Bool {
         unlocked
     }
+
+    // MARK: - The Daily exemption
+
+    /// The Daily is free at every size it schedules.
+    ///
+    /// `DailySeed.spec` puts a `.large` board on Saturday and Sunday, and
+    /// `.large` is behind the unlock. The schedule cannot move once shipped
+    /// (`DailySeedTests` pins it), so the size gate simply does not apply here.
+    /// A free player solving a large board every weekend is the best
+    /// advertisement the paid tier has; `shouldOfferUnlock` is where that lands.
+    ///
+    /// A separate function rather than a special case inside `isSizeAvailable`,
+    /// so the exemption reads as policy.
+    static func isDailyAvailable(_ day: DayKey, unlocked: Bool) -> Bool {
+        true
+    }
+
+    /// True when the board just finished was a taste of something the player
+    /// does not own: a weekend Daily solved without the unlock.
+    static func shouldOfferUnlock(afterSolving size: BoardSize,
+                                  wasDaily: Bool, unlocked: Bool) -> Bool {
+        wasDaily && !unlocked && !isSizeAvailable(size, unlocked: unlocked)
+    }
 }

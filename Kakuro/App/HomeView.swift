@@ -22,7 +22,7 @@ struct HomeView: View {
     /// focus engine picks the first control it finds, which is the Size picker:
     /// a poor greeting, and it made every keypress sequence unpredictable.
     @FocusState private var homeFocus: HomeFocus?
-    private enum HomeFocus: Hashable { case resume, play }
+    private enum HomeFocus: Hashable { case daily, resume, play }
     #endif
 
     var body: some View {
@@ -33,6 +33,14 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     wordmark
                         .padding(.top, 24)
+
+                    // Recomputed on every render rather than held in state, so
+                    // Home after midnight shows the new day without a timer.
+                    let today = DayKey(date: .now)
+                    DailyCard(today: today) { openDaily(today) }
+                        #if os(tvOS)
+                        .focused($homeFocus, equals: .daily)
+                        #endif
 
                     if progress.loadSavedGame() != nil {
                         continueCard
@@ -45,8 +53,9 @@ struct HomeView: View {
                         menuTile(title: "Practice", symbol: "target", route: .practiceMenu)
                     }
                     HStack(spacing: 12) {
-                        menuTile(title: "Stats", symbol: "chart.bar", route: .stats,
-                                 lockedBehind: .stats)
+                        // Open to everyone: the Daily streak panel is free, and
+                        // StatsView locks the rest in place.
+                        menuTile(title: "Stats", symbol: "chart.bar", route: .stats)
                         menuTile(title: "Settings", symbol: "gearshape", route: .settings)
                     }
                 }
@@ -75,6 +84,17 @@ struct HomeView: View {
             // .onChange does not fire on first appear, so this seeding call is
             // what actually warms the key the pickers point at.
             cache.warm(size: newGameSize, difficulty: newGameDifficulty)
+        }
+    }
+
+    /// Opens today's daily. If the saved game is this daily, resume it instead
+    /// of generating the board again and losing the player's progress on it.
+    private func openDaily(_ day: DayKey) {
+        if let saved = progress.loadSavedGame(), saved.dailyKey == day,
+           !progress.hasCompletedDaily(day) {
+            path.append(.resumeGame)
+        } else {
+            path.append(.daily(day))
         }
     }
 
@@ -153,7 +173,7 @@ struct HomeView: View {
                         .font(Theme.heading)
                         .foregroundStyle(Theme.ink)
                     if let snapshot = progress.loadSavedGame() {
-                        Text("\(snapshot.generated.difficulty.displayName) · \(formatTime(snapshot.elapsed))")
+                        Text("\(snapshot.dailyKey != nil ? "Daily · " : "")\(snapshot.generated.difficulty.displayName) · \(formatTime(snapshot.elapsed))")
                             .font(.subheadline)
                             .foregroundStyle(Theme.inkSoft)
                     }

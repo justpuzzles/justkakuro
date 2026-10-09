@@ -8,26 +8,50 @@ struct StatsView: View {
     var body: some View {
         ZStack {
             Theme.paper.ignoresSafeArea()
-            // Covers masteryCard too, which is the mastery-tracking surface.
-            // The tracker keeps recording for free players — showing an empty
-            // progress path to somebody who just paid would punish the purchase.
-            if !entitlements.isUnlocked {
-                LockedFeatureView(feature: .stats)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // The streak is free, like the Daily itself: a player
+                    // keeping one up should be able to see it.
+                    dailyCard
+                    // The lock covers masteryCard too, which is the
+                    // mastery-tracking surface. The tracker keeps recording for
+                    // free players — showing an empty progress path to somebody
+                    // who just paid would punish the purchase.
+                    if entitlements.isUnlocked {
                         overviewCard
                         bestTimesCard
                         masteryCard
+                    } else {
+                        LockedFeatureView(feature: .stats)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
-                    .padding(20)
-                    .frame(maxWidth: Metrics.column)
-                    .frame(maxWidth: .infinity)
                 }
+                .padding(20)
+                .frame(maxWidth: Metrics.column)
+                .frame(maxWidth: .infinity)
             }
         }
         .navigationTitle("Stats")
         .navigationTitleDisplay(.large)
+    }
+
+    private var dailyCard: some View {
+        let today = DayKey(date: .now)
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Daily")
+                .font(Theme.heading)
+                .foregroundStyle(Theme.ink)
+            HStack(spacing: 0) {
+                stat(value: "\(progress.displayStreak(today: today))", label: "day streak")
+                Divider().padding(.vertical, 8)
+                stat(value: "\(progress.daily.bestStreak)", label: "best streak")
+                Divider().padding(.vertical, 8)
+                stat(value: "\(progress.daily.completedTimes.count)", label: "dailies solved")
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.surface))
     }
 
     private var overviewCard: some View {

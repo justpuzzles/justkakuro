@@ -85,6 +85,18 @@ final class AccessibilityAuditTests: XCTestCase {
         try audit()
     }
 
+    /// The free player's Stats: the Daily streak panel above the inline lock.
+    func testStatsFree() throws {
+        app.launchArguments = ["-uiTestResetState"]
+        app.launch()
+        app.buttons["Stats"].tap()
+        XCTAssertTrue(app.staticTexts["day streak"].waitForExistence(timeout: 5),
+                      "the Daily panel is free")
+        XCTAssertTrue(app.buttons["Unlock everything"].exists, "the rest is locked in place")
+        acceptListFalsePositives = true
+        try audit()
+    }
+
     func testSettings() throws {
         app.launch()
         app.buttons["Settings"].tap()

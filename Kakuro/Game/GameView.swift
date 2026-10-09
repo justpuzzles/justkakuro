@@ -20,6 +20,9 @@ struct GameView: View {
     /// change so that placement does not count toward unaided mastery.
     @State private var appliedHint = false
     @State private var newBestTime = false
+    /// Presented once the win sheet is gone: two sheets cannot be up at once,
+    /// and the paywall is rooted above the NavigationStack.
+    @State private var pendingPaywall: PaidFeature?
     #if os(tvOS)
     /// tvOS only: Select on a focused cell opens the digit chooser.
     @State private var choosingDigit = false
@@ -81,13 +84,21 @@ struct GameView: View {
         .onChange(of: game.phase) { _, phase in
             if phase == .won {
                 progress.clearSavedGame()
+                // Before recordSolve, so the win sheet's streak line reads the
+                // updated record on its first frame.
+                if let day = game.dailyKey {
+                    progress.recordDailyCompleted(day: day, time: game.elapsed)
+                }
                 newBestTime = progress.recordSolve(
                     size: sizeOf(game.puzzle), difficulty: game.difficultyForRecords,
                     time: game.elapsed)
                 Haptics.win()
                 showWinSheet = true
-                let spoken = "Solved in \(TimeFormatting.spoken(game.elapsed))"
+                var spoken = "Solved in \(TimeFormatting.spoken(game.elapsed))"
                     + (newBestTime ? ", a new best time." : ".")
+                if game.dailyKey != nil {
+                    spoken += " \(progress.daily.currentStreak) day streak."
+                }
                 Task {
                     // After the sheet takes focus, or its own focus change
                     // cuts the announcement off.
@@ -124,7 +135,12 @@ struct GameView: View {
             game.pause()
             persist()
         }
-        .sheet(isPresented: $showWinSheet) { winSheet }
+        .sheet(isPresented: $showWinSheet, onDismiss: {
+            if let feature = pendingPaywall {
+                pendingPaywall = nil
+                paywall.present(feature)
+            }
+        }) { winSheet }
         .sheet(item: $tappedClue) { selection in
             CombinationSheet(selection: selection) { game.remainingCombinations(for: $0) }
         }
@@ -298,7 +314,7 @@ struct GameView: View {
 
     private var statusRow: some View {
         HStack {
-            Text(game.generated.difficulty.displayName)
+            Text((game.dailyKey != nil ? "Daily · " : "") + game.generated.difficulty.displayName)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Theme.inkSoft)
             Spacer()
@@ -442,9 +458,39 @@ struct GameView: View {
 
     // MARK: - Win
 
+    /// The weekend Daily hands a free player a large board. The moment they
+    /// solve it is the one moment worth making the case.
+    private var offersUnlock: Bool {
+        FeatureGate.shouldOfferUnlock(afterSolving: sizeOf(game.puzzle),
+                                      wasDaily: game.dailyKey != nil,
+                                      unlocked: entitlements.isUnlocked)
+    }
+
+    private var streakLine: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "flame.fill")
+                .foregroundStyle(Theme.indigo)
+                .accessibilityHidden(true)
+            Text("\(progress.daily.currentStreak) day streak")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Theme.ink)
+            if progress.daily.currentStreak == progress.daily.bestStreak
+                && progress.daily.bestStreak > 1 {
+                Text("· best")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.inkSoft)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Scrolls, with Done pinned below: a daily's streak line, a long technique
+    /// recap on a large board and the weekend upsell together overflow the
+    /// medium detent, which pushed Done off the bottom of the sheet.
     private var winSheet: some View {
+        ScrollView {
         VStack(spacing: 20) {
-            Text("Solved")
+            Text(game.dailyKey != nil ? "Daily solved" : "Solved")
                 .font(Theme.title)
                 .foregroundStyle(Theme.ink)
             Text(formatTime(game.elapsed))
@@ -464,7 +510,29 @@ struct GameView: View {
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkSoft)
             }
+            if game.dailyKey != nil {
+                streakLine
+            }
             TechniqueRecapView(profile: game.generated.techniqueProfile)
+            if offersUnlock {
+                VStack(spacing: 8) {
+                    Text("That was a large board, free because it is today's Daily. Large boards are part of the full game.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.inkSoft)
+                        .multilineTextAlignment(.center)
+                    Button("See what's included") {
+                        pendingPaywall = .largeBoards
+                        showWinSheet = false
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .tint(Theme.indigo)
+                }
+            }
+        }
+        .padding([.horizontal, .top], 24)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaInset(edge: .bottom) {
             Button {
                 showWinSheet = false
                 dismiss()
@@ -476,9 +544,15 @@ struct GameView: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.indigo))
             }
             .buttonStyle(.kakuro)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(Theme.paper)
         }
-        .padding(24)
+        #if os(iOS)
+        .presentationDetents([.medium, .large])
+        #else
         .mediumSheet()
+        #endif
         .presentationBackground(Theme.paper)
     }
 

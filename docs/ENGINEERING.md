@@ -152,6 +152,19 @@ Warming policy lives in `HomeView`, not `ContentView`: it warms the key the pick
 
 **Hard is not slower than medium** — `fill`'s digit ordering only special-cases `.easy`, so `.medium` and `.hard` take byte-identical search paths. **Easy is the expensive band**, and `large/easy` is the worst case in the app. The `.easy` extreme-digit bias is why: removing it makes large/easy ~2× faster with no band-accuracy loss, but makes *medium* slower. It is size-dependent; do not touch it without a calibration run.
 
+## The Daily (1.1): seed, schedule and RNG order are shipped API
+
+Ported from Hashi (`Engine/DailySeed.swift`). Every player gets the same board for a local calendar day.
+
+- Seed: FNV-1a over `"kakuro.daily.v1.YYYY-MM-DD"`. The prefix differs from Hashi's on purpose. Weekday comes from Zeller, never `Calendar`, so a time zone cannot shift the schedule.
+- Schedule: Mon/Tue small/easy, Wed/Thu medium/medium, Fri medium/hard, **Sat and Sun large/hard**. Hashi's Saturday is large/medium; here that measured p90 3.6 s native -O over 18 dailies and missed its band 3 times, while large/hard was p90 1.8 s. large/easy is never scheduled.
+- **Never change the seed string, the schedule, or the order of RNG draws in the generator** once 1.1 ships: each rewrites every player's past and future dailies. `DailySeedTests.goldenBoardForNewYear2026` pins a whole board, so any of the three moving fails a test. Do not update that expectation; fix the regression.
+- `PuzzleCache.CacheKey` is `.standard(size, difficulty)` or `.daily(DayKey)`. A consumed daily is **not** re-warmed: the next request would rebuild the same board, and warming it would cancel the standard key Home keeps hot.
+- The day travels in `KakuroGame.dailyKey` and the optional `Snapshot.dailyKey`, so a resumed daily still counts. 1.0 saves decode with `dailyKey == nil` (`saveFromBeforeDailiesStillDecodes`). Home's Daily card resumes the saved game when it is today's daily, rather than starting the board over.
+- Streak (`ProgressStore.daily`, key `kakuro.daily.v1`): `displayStreak(today:)` is computed, so a missed day shows 0 with nothing running at midnight. **Finishing an older daily late records its time and leaves the streak alone.** Hashi resets the counter to 1 in that case, which breaks a live streak (`finishingAnOlderDailyLateKeepsTheStreak`).
+- Gate: the Daily is free at every size (`FeatureGate.isDailyAvailable`), weekend large boards included; `shouldOfferUnlock` adds a line to the win sheet after a free weekend daily. Stats is no longer locked as a whole: the Daily panel is free, and the rest is locked inline.
+- Dailies also count toward best times and solve stats, as in Hashi.
+
 ## Uniqueness is a runtime guarantee, not a convention
 
 `generate` has exactly one exit, and everything passes `verified(_:size:)`: `countSolutions(limit: 2, nodeLimit: 200_000)` requiring `!aborted && count == 1`, then `LogicalSolver.solve` requiring `.solved`. Measured cost **17ms p50 / 84ms max on large — 0.7% of a 2.4s generation**.

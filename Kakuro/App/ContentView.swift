@@ -32,6 +32,8 @@ struct ContentView: View {
         switch route {
         case .game(let size, let difficulty):
             GameLoaderView(size: size, difficulty: difficulty)
+        case .daily(let day):
+            GameLoaderView(daily: day)
         case .resumeGame:
             ResumeGameView()
         case .tutorial(let technique):
@@ -54,6 +56,22 @@ struct ContentView: View {
 struct GameLoaderView: View {
     let size: BoardSize
     let difficulty: Difficulty
+    /// Set for a daily: the cache key carries the day's seed, and the game
+    /// carries the day so the win counts for the streak.
+    let dailyKey: DayKey?
+
+    init(size: BoardSize, difficulty: Difficulty) {
+        self.size = size
+        self.difficulty = difficulty
+        self.dailyKey = nil
+    }
+
+    init(daily day: DayKey) {
+        let spec = DailySeed.spec(for: day)
+        self.size = spec.size
+        self.difficulty = spec.difficulty
+        self.dailyKey = day
+    }
     @Environment(PuzzleCache.self) private var cache
     @Environment(ProgressStore.self) private var progress
 
@@ -78,11 +96,15 @@ struct GameLoaderView: View {
             // *requested* difficulty, not the delivered band — generate returns
             // nearest-band on budget exhaustion, and persisting that would make
             // the picker silently jump.
-            progress.recordLastPlayed(size: size, difficulty: difficulty)
+            // A daily is not the player's choice, so it must not move the
+            // pickers.
+            if dailyKey == nil {
+                progress.recordLastPlayed(size: size, difficulty: difficulty)
+            }
 
             // Obtained synchronously, before the first suspension, so no
             // progress is missed and the entry cannot be rebuilt underneath us.
-            let request = cache.request(size: size, difficulty: difficulty)
+            let request = cache.request(dailyKey.map { .daily($0) } ?? .standard(size, difficulty))
             let watcher = Task { @MainActor in
                 for await value in request.progress {
                     fraction = max(fraction, value)
@@ -92,7 +114,8 @@ struct GameLoaderView: View {
 
             // nil means cancelled — this view is on its way out.
             guard let generated = await request.puzzle() else { return }
-            let fresh = KakuroGame(puzzle: generated, requestedDifficulty: difficulty)
+            let fresh = KakuroGame(puzzle: generated, requestedDifficulty: difficulty,
+                                   dailyKey: dailyKey)
             if progress.settings.autoNotes {
                 fresh.fillAutoNotes()
             }

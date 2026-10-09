@@ -119,6 +119,37 @@ import Testing
         #expect(second != nil, "the re-warmed entry should still serve a puzzle")
     }
 
+    /// A daily reaches the generator with the day's seed and scheduled spec,
+    /// and is not speculatively rebuilt afterwards: re-warming it would cancel
+    /// the standard key Home is keeping hot, for a board the player already has.
+    @Test func dailyUsesItsSeedAndLeavesTheStandardWarmAlone() async {
+        let fake = FakeGenerator()
+        let seen = OptionsLog()
+        let cache = PuzzleCache(generate: { options, control in
+            seen.append(options)
+            return fake.generate(options, control)
+        })
+        fake.release()
+
+        cache.warm(size: .small, difficulty: .easy)
+        let day = DayKey(year: 2026, month: 8, day: 9)  // a Sunday: large/hard
+        #expect(await cache.request(.daily(day)).puzzle() != nil)
+
+        let daily = seen.all.first { $0.seed == DailySeed.seed(for: day) }
+        #expect(daily?.size == .large)
+        #expect(daily?.difficulty == .hard)
+        #expect(!cache.isWarm(.daily(day)), "a consumed daily must not be re-warmed")
+        #expect(cache.isWarm(size: .small, difficulty: .easy),
+                "claiming the daily must not cancel the standard warm")
+    }
+
+    private nonisolated final class OptionsLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _all: [KakuroGenerator.Options] = []
+        var all: [KakuroGenerator.Options] { lock.withLock { _all } }
+        func append(_ options: KakuroGenerator.Options) { lock.withLock { _all.append(options) } }
+    }
+
     /// Polls a condition against a generous deadline.
     private func waitUntil(_ what: String, _ condition: () -> Bool) async {
         let deadline = ContinuousClock.now.advanced(by: .seconds(10))
