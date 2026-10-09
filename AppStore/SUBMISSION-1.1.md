@@ -1,8 +1,10 @@
 # Just Kakuro 1.1 "Daily": submission runbook
 
-State on 2026-10-09: **staged in App Store Connect on all four platforms, not
-submitted.** Each 1.1 version is `PREPARE_FOR_SUBMISSION` with build 8
-attached. What is left is Kai's, on the web (§1).
+State on 2026-10-09: **ready to submit on all four platforms, not
+submitted.** Each 1.1 version has build 8 attached and sits in its own draft
+review submission, so App Store Connect has already run its completeness
+check: version and submission are both `READY_FOR_REVIEW`. The only step left
+is pressing Submit (§1).
 
 ## App record facts
 
@@ -13,22 +15,24 @@ attached. What is left is Kai's, on the web (§1).
 - Release type: `AFTER_APPROVAL`, as for 1.0. Switch to manual on the web if
   the four platforms should go live together.
 
-| Platform | 1.1 version id | Build 8 id (= delivery id) |
-|---|---|---|
-| iOS | `f7c1752b-d547-481d-a37a-be43e11fa708` | `9345994a-5e82-47c1-8e56-eeaeababf153` |
-| macOS | `765085cc-498c-4c57-aa85-99b7828265cc` | `b981d667-7366-453d-8e59-76ac59113e62` |
-| tvOS | `ee359e7d-e1f8-4066-86e0-a56fda59c520` | `57c7877d-f8b5-4034-8edc-3ca42c246c1a` |
-| visionOS | `cd9f962c-68e8-4abf-b3d9-8b78a01dd543` | `0ca741d3-d8c8-4ab9-bb73-21326e5de245` |
+| Platform | 1.1 version id | Build 8 id (= delivery id) | Draft review submission |
+|---|---|---|---|
+| iOS | `f7c1752b-d547-481d-a37a-be43e11fa708` | `9345994a-5e82-47c1-8e56-eeaeababf153` | `90ec9159-aeff-4c49-a3be-ca4b877ca59a` |
+| macOS | `765085cc-498c-4c57-aa85-99b7828265cc` | `b981d667-7366-453d-8e59-76ac59113e62` | `4781dea1-fee0-4f80-b09a-0d3b06aa327f` |
+| tvOS | `ee359e7d-e1f8-4066-86e0-a56fda59c520` | `57c7877d-f8b5-4034-8edc-3ca42c246c1a` | `c6fde483-283b-45ac-b7cd-1b54f5c20637` |
+| visionOS | `cd9f962c-68e8-4abf-b3d9-8b78a01dd543` | `0ca741d3-d8c8-4ab9-bb73-21326e5de245` | `1f479baf-bead-4bb0-96d4-5660c8587595` |
 
 Build 7 was uploaded first (all four platforms, `VALID`) and is **not**
 attached: it predates the tvOS badge-size fix. Ignore it.
 
 ## 1. What is left
 
-Kai, on the web, per platform:
-- [ ] Look over the version page (What's New, description, screenshots,
-  build 8) and **Add for Review / Submit**. iOS first; the others can follow
-  in the same sitting.
+Kai, per platform:
+- [ ] **Submit.** On the web: App Store Connect → Just Kakuro → the platform's
+  1.1 page shows the draft submission ("Ready for Review") → Submit for
+  Review. Or by API, which is the same action:
+  `asc.py PATCH reviewSubmissions/<id> '{"data":{"type":"reviewSubmissions","id":"<id>","attributes":{"submitted":true}}}'`
+  with the ids from the table above.
 - [ ] Optional: Accessibility Nutrition Labels from `docs/ACCESSIBILITY.md`
   (iOS claims are tested; the Mac Daily card was checked by AXPress; tvOS
   VoiceOver is untested, so claim nothing there).
@@ -47,6 +51,8 @@ Done by API on 2026-10-09, all read back:
 - [x] Screenshots swapped in place, every asset `COMPLETE`: `01-home` and
   `05-stats` on iPhone 6.9" and iPad 13"; `1-home` on Apple TV and Vision Pro.
   The Mac set (game, learn) shows nothing that changed.
+- [x] Draft review submission per platform with the 1.1 version as its item;
+  the item POST passed Apple's readiness gate on all four (2026-10-09)
 - [x] Builds 1.1 (8): each package inspected (version, no `.storekit`, privacy
   manifest present, no `-KakuroScreenshotUnlock`/`-uiTestResetState`
   strings), `--validate-app` clean, uploaded, `VALID`,
@@ -61,7 +67,7 @@ Done by API on 2026-10-09, all read back:
 - iOS simulator: today's daily solved by idb taps → "Daily solved", streak 1;
   replay leaves the streak alone; Home shows the solved seal.
 - macOS Debug build: the Daily card opened with AXPress (after the fix in
-  `8360704`), the board was solved with the cells' "Enter n" accessibility
+  `faf0f7a`), the board was solved with the cells' "Enter n" accessibility
   actions → "Daily solved", streak 4 → 5. Synthetic mouse clicks did not
   reach the window; use AX.
 - tvOS 18.5 simulator: Home screenshot only. The Daily card takes focus on
