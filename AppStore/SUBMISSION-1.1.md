@@ -6,6 +6,12 @@ review submission, so App Store Connect has already run its completeness
 check: version and submission are both `READY_FOR_REVIEW`. The only step left
 is pressing Submit (§1).
 
+Re-checked by API on 2026-10-21: all four versions and draft submissions are
+still `READY_FOR_REVIEW` with one item each, build 8 is `VALID` and attached
+on every platform (expires 2027-01-07), and the IAP is still `APPROVED`. Build
+8 carries the forward-only streak fix and `displayStreak(today:)` (`303b162`),
+so the streak bug fixed in Hashi, Shikaku and Numeriqo does not apply here.
+
 ## App record facts
 
 - ASC App ID **6796701026** · bundle `de.kaikunze.kakuro` · en-US · team `8H42EZRCCP`
