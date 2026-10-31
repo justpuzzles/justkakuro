@@ -1,7 +1,8 @@
 # Just Kakuro 1.1 "Daily": submission runbook
 
-State on 2026-10-09: **ready to submit on all four platforms, not
-submitted.** Each 1.1 version has build 8 attached and sits in its own draft
+State on 2026-10-31: **ready to submit on all four platforms, not
+submitted. Build 9 is attached** (swapped in for build 8 on 2026-10-31; build
+9 adds the Gregorian-day daily seed, `00f1448`). Each 1.1 version sits and sits in its own draft
 review submission, so App Store Connect has already run its completeness
 check: version and submission are both `READY_FOR_REVIEW`. The only step left
 is pressing Submit (§1).
@@ -21,7 +22,7 @@ so the streak bug fixed in Hashi, Shikaku and Numeriqo does not apply here.
 - Release type: `AFTER_APPROVAL`, as for 1.0. Switch to manual on the web if
   the four platforms should go live together.
 
-| Platform | 1.1 version id | Build 8 id (= delivery id) | Draft review submission |
+| Platform | 1.1 version id | Build 8 id (superseded) | Draft review submission |
 |---|---|---|---|
 | iOS | `f7c1752b-d547-481d-a37a-be43e11fa708` | `9345994a-5e82-47c1-8e56-eeaeababf153` | `90ec9159-aeff-4c49-a3be-ca4b877ca59a` |
 | macOS | `765085cc-498c-4c57-aa85-99b7828265cc` | `b981d667-7366-453d-8e59-76ac59113e62` | `4781dea1-fee0-4f80-b09a-0d3b06aa327f` |
@@ -30,6 +31,20 @@ so the streak bug fixed in Hashi, Shikaku and Numeriqo does not apply here.
 
 Build 7 was uploaded first (all four platforms, `VALID`) and is **not**
 attached: it predates the tvOS badge-size fix. Ignore it.
+
+Build 9 (attached 2026-10-31), delivery id = build id, all `VALID`,
+`usesNonExemptEncryption = false`:
+
+| Platform | Build 9 id |
+|---|---|
+| iOS | `d1eaddac-23d6-442a-bd50-8e985d49810c` |
+| macOS | `081cd5b3-85a1-42ce-8a52-1dd753762d17` |
+| tvOS | `11a1285d-d624-4060-8e2f-172d05e535ef` |
+| visionOS | `e81e29dc-b618-4fcc-b4df-7e05391bf200` |
+
+Each package was inspected as for build 8 (version 1.1 (9), privacy manifest
+present, no `.storekit`, no debug dylibs, no screenshot/reset strings) and
+passed `--validate-app`. Archive script: `build/archive-1.1-9.sh` (ignored).
 
 ## 1. What is left
 
