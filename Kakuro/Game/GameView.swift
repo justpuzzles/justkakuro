@@ -135,7 +135,8 @@ struct GameView: View {
         // exists to prevent.
         #if DEBUG
         // Eyeballing the clue sweep: fills every cell but the last with its
-        // solution, so one digit wins. DEBUG only, string included.
+        // solution and selects that one, so one digit wins. DEBUG only,
+        // string included.
         .onAppear {
             guard ProcessInfo.processInfo.arguments.contains("-KakuroNearlySolved"),
                   game.phase == .playing else { return }
@@ -145,6 +146,7 @@ struct GameView: View {
                     game.place(solution, at: pos)
                 }
             }
+            game.selected = game.puzzle.whitePositions.first { game.board.entry(at: $0) == nil }
         }
         #endif
         .onDisappear {
