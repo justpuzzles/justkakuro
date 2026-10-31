@@ -1,7 +1,7 @@
 # Just Kakuro 1.1 "Daily": submission runbook
 
-State on 2026-10-31: **ready to submit on all four platforms, not
-submitted. Build 9 is attached** (swapped in for build 8 on 2026-10-31; build
+State on 2026-10-31: **submitted on all four platforms (08:39 UTC),
+WAITING_FOR_REVIEW. Build 9 is attached** (swapped in for build 8 on 2026-10-31; build
 9 adds the Gregorian-day daily seed, `00f1448`). Each 1.1 version sits and sits in its own draft
 review submission, so App Store Connect has already run its completeness
 check: version and submission are both `READY_FOR_REVIEW`. The only step left
@@ -49,7 +49,7 @@ passed `--validate-app`. Archive script: `build/archive-1.1-9.sh` (ignored).
 ## 1. What is left
 
 Kai, per platform:
-- [ ] **Submit.** On the web: App Store Connect → Just Kakuro → the platform's
+- [x] **Submit.** Done by API 2026-10-31 08:39 UTC on all four platforms. On the web: App Store Connect → Just Kakuro → the platform's
   1.1 page shows the draft submission ("Ready for Review") → Submit for
   Review. Or by API, which is the same action:
   `asc.py PATCH reviewSubmissions/<id> '{"data":{"type":"reviewSubmissions","id":"<id>","attributes":{"submitted":true}}}'`
