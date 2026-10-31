@@ -23,6 +23,18 @@ nonisolated enum Motion {
     static let boardEntranceStagger: TimeInterval = 0.012
     /// Hint highlight pulse.
     static let hintPulse = Animation.easeInOut(duration: 0.6).repeatCount(2, autoreverses: true)
+    /// Win clue sweep: how long the diagonal wave takes to cross the board,
+    /// whatever its size. Per-step stagger is capped at `runCompleteStagger`.
+    static let winSweepSpan: TimeInterval = 0.55
+    /// One cell's flash: up to the crest, then back down to the solved rest tint.
+    static let winFlashUp: TimeInterval = 0.16
+    static let winFlashDown: TimeInterval = 0.4
+    /// Crest strength of the flash, and the tint the board settles at.
+    static let winFlashPeak: Double = 0.45
+    static let winRestTint: Double = 0.18
+    static let winSettle = Animation.easeOut(duration: winFlashDown)
+    /// Pause between the `.success` haptic and the win sheet.
+    static let winSheetLead: TimeInterval = 0.12
     /// Sheet/overlay transitions.
     static let overlay = Animation.spring(response: 0.35, dampingFraction: 0.9)
 }

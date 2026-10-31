@@ -16,6 +16,11 @@ struct GameView: View {
     @State private var tappedClue: ClueSelection?
     @State private var sweep: [GridPosition: Int] = [:]
     @State private var showWinSheet = false
+    /// The clue sweep, set once on the solving move.
+    @State private var winSweep: WinSweep?
+    /// The running sweep-then-sheet sequence; a tap cancels it and jumps on.
+    @State private var winSequence: Task<Void, Never>?
+    @State private var successPlayed = false
     /// Set when the player taps Apply on a hint, consumed by the next entry
     /// change so that placement does not count toward unaided mastery.
     @State private var appliedHint = false
@@ -44,6 +49,15 @@ struct GameView: View {
                 #endif
             if game.phase == .paused {
                 pauseOverlay
+            }
+            if winSequence != nil {
+                // A tap anywhere skips the sweep straight to the sheet. Hidden
+                // from VoiceOver, which gets the sheet on its own a beat later.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture { presentWinSheet() }
+                    .accessibilityHidden(true)
             }
             #if os(tvOS)
             if choosingDigit {
@@ -92,19 +106,7 @@ struct GameView: View {
                 newBestTime = progress.recordSolve(
                     size: sizeOf(game.puzzle), difficulty: game.difficultyForRecords,
                     time: game.elapsed)
-                Haptics.win()
-                showWinSheet = true
-                var spoken = "Solved in \(TimeFormatting.spoken(game.elapsed))"
-                    + (newBestTime ? ", a new best time." : ".")
-                if game.dailyKey != nil {
-                    spoken += " \(progress.daily.currentStreak) day streak."
-                }
-                Task {
-                    // After the sheet takes focus, or its own focus change
-                    // cuts the announcement off.
-                    try? await Task.sleep(for: .seconds(0.8))
-                    BoardSpeech.announce(spoken)
-                }
+                celebrate()
             } else {
                 progress.saveGame(game.snapshot)
             }
@@ -131,7 +133,23 @@ struct GameView: View {
         // Pause as well as save: leaving via Back otherwise keeps `lastTick`
         // set, exactly the wall-clock folding the scene-phase handler above
         // exists to prevent.
+        #if DEBUG
+        // Eyeballing the clue sweep: fills every cell but the last with its
+        // solution, so one digit wins. DEBUG only, string included.
+        .onAppear {
+            guard ProcessInfo.processInfo.arguments.contains("-KakuroNearlySolved"),
+                  game.phase == .playing else { return }
+            for pos in game.puzzle.whitePositions.sorted().dropLast()
+            where game.board.entry(at: pos) == nil {
+                if case .white(let solution) = game.puzzle.cells[pos.row][pos.col] {
+                    game.place(solution, at: pos)
+                }
+            }
+        }
+        #endif
         .onDisappear {
+            winSequence?.cancel()
+            winSequence = nil
             game.pause()
             persist()
         }
@@ -297,7 +315,7 @@ struct GameView: View {
     /// and land on the nearest cell inside it, and `@FocusState` still holds the
     /// cell you left, so you come back where you were.
     private var boardSection: some View {
-        BoardView(game: game, highlighted: hintHighlights, sweep: sweep,
+        BoardView(game: game, highlighted: hintHighlights, sweep: sweep, winSweep: winSweep,
                   onTap: { pos in handleTap(pos) },
                   onAssistiveEdit: { pos, edit in assistiveEdit(pos, edit) },
                   onActivate: { _ in
@@ -418,7 +436,8 @@ struct GameView: View {
                                                    puzzle: game.puzzle) {
             BoardSpeech.announce(spoken)
         }
-        if !completed.isEmpty {
+        // The solving move's runs are the clue sweep's to celebrate.
+        if !completed.isEmpty, game.phase != .won {
             Haptics.runComplete()
             withAnimation(Motion.runComplete) { sweep = completed }
             Task {
@@ -458,6 +477,67 @@ struct GameView: View {
 
     // MARK: - Win
 
+    /// The solving move: the clue sweep crosses the board corner to corner,
+    /// light run-complete pulses ride along with it, `.success` lands as the
+    /// last cell crests, and the sheet follows. About 0.85 s on any board size,
+    /// a quarter of that under Reduce Motion, where every cell fades at once.
+    private func celebrate() {
+        let sweepPlan = WinSweep(puzzle: game.puzzle, span: Motion.winSweepSpan,
+                                 maxStagger: Motion.runCompleteStagger)
+        sweep = [:]
+        winSweep = sweepPlan
+        let travel = reduceMotion ? 0 : sweepPlan.duration
+        Haptics.runComplete()
+        winSequence = Task {
+            if travel > 0 {
+                for _ in 0..<2 {
+                    try? await Task.sleep(for: .seconds(travel / 2))
+                    guard !Task.isCancelled else { return }
+                    Haptics.runComplete()
+                }
+            }
+            try? await Task.sleep(for: .seconds(Motion.winFlashUp))
+            guard !Task.isCancelled else { return }
+            playSuccess()
+            try? await Task.sleep(for: .seconds(Motion.winSheetLead))
+            guard !Task.isCancelled else { return }
+            presentWinSheet()
+        }
+    }
+
+    private func playSuccess() {
+        guard !successPlayed else { return }
+        successPlayed = true
+        Haptics.win()
+    }
+
+    /// End of the sequence, or a tap that skipped it. Idempotent.
+    private func presentWinSheet() {
+        winSequence?.cancel()
+        winSequence = nil
+        playSuccess()
+        guard !showWinSheet else { return }
+        showWinSheet = true
+        var spoken = "Solved in \(TimeFormatting.spoken(game.elapsed))"
+            + (newBestTime ? ", a new best time." : ".")
+        if game.dailyKey != nil {
+            spoken += " \(streak) day streak."
+        }
+        Task {
+            // After the sheet takes focus, or its own focus change
+            // cuts the announcement off.
+            try? await Task.sleep(for: .seconds(0.8))
+            BoardSpeech.announce(spoken)
+        }
+    }
+
+    /// The streak as it stands today. `currentStreak` is the stored counter,
+    /// which an older daily finished late leaves untouched, so it could show a
+    /// run that ended weeks ago.
+    private var streak: Int {
+        progress.displayStreak(today: DayKey(date: .now))
+    }
+
     /// The weekend Daily hands a free player a large board. The moment they
     /// solve it is the one moment worth making the case.
     private var offersUnlock: Bool {
@@ -471,10 +551,10 @@ struct GameView: View {
             Image(systemName: "flame.fill")
                 .foregroundStyle(Theme.indigo)
                 .accessibilityHidden(true)
-            Text("\(progress.daily.currentStreak) day streak")
+            Text("\(streak) day streak")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Theme.ink)
-            if progress.daily.currentStreak == progress.daily.bestStreak
+            if streak == progress.daily.bestStreak
                 && progress.daily.bestStreak > 1 {
                 Text("· best")
                     .font(.subheadline)
@@ -490,13 +570,23 @@ struct GameView: View {
     private var winSheet: some View {
         ScrollView {
         VStack(spacing: 20) {
-            Text(game.dailyKey != nil ? "Daily solved" : "Solved")
-                .font(Theme.title)
-                .foregroundStyle(Theme.ink)
-            Text(formatTime(game.elapsed))
-                .scaledDigitFont(40, relativeTo: .largeTitle)
-                .accessibilityLabel(TimeFormatting.spoken(game.elapsed))
-                .foregroundStyle(Theme.indigo)
+            // Leads with the time: it is what the player just earned.
+            VStack(spacing: 6) {
+                Text(formatTime(game.elapsed))
+                    .scaledDigitFont(40, relativeTo: .largeTitle)
+                    .accessibilityLabel(TimeFormatting.spoken(game.elapsed))
+                    .foregroundStyle(Theme.indigo)
+                Text(game.dailyKey != nil ? "Daily solved" : "Solved")
+                    .font(Theme.title)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityAddTraits(.isHeader)
+                if let techniques = WinSummary.techniquesLine(
+                    profile: game.generated.techniqueProfile) {
+                    Text(techniques)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkSoft)
+                }
+            }
             // Taken from recordSolve rather than re-derived by comparing against
             // a store that has already been updated: on an exact tie the old
             // comparison claimed a new best that was never recorded.
