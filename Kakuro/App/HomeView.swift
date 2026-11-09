@@ -9,10 +9,14 @@ struct HomeView: View {
     @Environment(PuzzleCache.self) private var cache
     @Environment(EntitlementStore.self) private var entitlements
     @Environment(PaywallPresenter.self) private var paywall
+    @Environment(TodayClock.self) private var clock
 
     @State private var newGameSize: BoardSize = .small
     @State private var newGameDifficulty: Difficulty = .easy
     @State private var showNewGame = false
+    /// Play while a standard game is saved asks first: the new board takes
+    /// that slot as soon as the player makes a move on it.
+    @State private var confirmingNewGame = false
     /// Suppresses the size gate while the pickers are being restored — see
     /// `restorePickers()`.
     @State private var isRestoring = false
@@ -22,7 +26,7 @@ struct HomeView: View {
     /// focus engine picks the first control it finds, which is the Size picker:
     /// a poor greeting, and it made every keypress sequence unpredictable.
     @FocusState private var homeFocus: HomeFocus?
-    private enum HomeFocus: Hashable { case daily, resume, play }
+    private enum HomeFocus: Hashable { case daily, resume, resumeDaily, play }
     #endif
 
     var body: some View {
@@ -34,16 +38,22 @@ struct HomeView: View {
                     wordmark
                         .padding(.top, 24)
 
-                    // Recomputed on every render rather than held in state, so
-                    // Home after midnight shows the new day without a timer.
-                    let today = DayKey(date: .now)
+                    // From the observable clock, not `DayKey(date: .now)`: a
+                    // body only re-runs when something it reads changes, so
+                    // 1.1's Home left open overnight kept yesterday's daily.
+                    let today = clock.today
                     DailyCard(today: today) { openDaily(today) }
                         #if os(tvOS)
                         .focused($homeFocus, equals: .daily)
                         #endif
 
-                    if progress.loadSavedGame() != nil {
-                        continueCard
+                    if let saved = progress.savedGame(.standard) {
+                        continueCard(.standard, saved)
+                    }
+                    // Today's daily resumes from the Daily card. An unfinished
+                    // daily from an earlier day has nowhere else to go.
+                    if let saved = progress.savedGame(.daily), saved.dailyKey != today {
+                        continueCard(.daily, saved)
                     }
 
                     newGameCard
@@ -87,12 +97,12 @@ struct HomeView: View {
         }
     }
 
-    /// Opens today's daily. If the saved game is this daily, resume it instead
+    /// Opens today's daily. If the daily slot holds this day, resume it instead
     /// of generating the board again and losing the player's progress on it.
     private func openDaily(_ day: DayKey) {
-        if let saved = progress.loadSavedGame(), saved.dailyKey == day,
+        if let saved = progress.savedGame(.daily), saved.dailyKey == day,
            !progress.hasCompletedDaily(day) {
-            path.append(.resumeGame)
+            path.append(.resume(.daily))
         } else {
             path.append(.daily(day))
         }
@@ -163,20 +173,18 @@ struct HomeView: View {
         .accessibilityLabel("Just Kakuro")
     }
 
-    private var continueCard: some View {
+    private func continueCard(_ slot: GameSlot, _ snapshot: KakuroGame.Snapshot) -> some View {
         Button {
-            path.append(.resumeGame)
+            path.append(.resume(slot))
         } label: {
             CardRow {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Continue")
+                    Text(slot == .daily ? "Continue daily" : "Continue")
                         .font(Theme.heading)
                         .foregroundStyle(Theme.ink)
-                    if let snapshot = progress.loadSavedGame() {
-                        Text("\(snapshot.dailyKey != nil ? "Daily · " : "")\(snapshot.generated.difficulty.displayName) · \(formatTime(snapshot.elapsed))")
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.inkSoft)
-                    }
+                    Text(continueDetail(snapshot))
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkSoft)
                 }
                 Spacer()
                 Image(systemName: "arrow.right")
@@ -190,8 +198,24 @@ struct HomeView: View {
         }
         .buttonStyle(.kakuro)
         #if os(tvOS)
-        .focused($homeFocus, equals: .resume)
+        .focused($homeFocus, equals: slot == .daily ? .resumeDaily : .resume)
         #endif
+    }
+
+    private func continueDetail(_ snapshot: KakuroGame.Snapshot) -> String {
+        let difficulty = (snapshot.requestedDifficulty ?? snapshot.generated.difficulty).displayName
+        let time = formatTime(snapshot.elapsed)
+        if let day = snapshot.dailyKey {
+            let date = day.date().formatted(.dateTime.month(.abbreviated).day())
+            return "\(date) · \(difficulty) · \(time)"
+        }
+        return "\(difficulty) · \(time)"
+    }
+
+    private func startNewGame() {
+        // No prefetch here — the selection is already warm, and the
+        // loader claims that entry rather than racing it.
+        path.append(.game(size: newGameSize, difficulty: newGameDifficulty))
     }
 
     /// Quiet row label, matching the secondary-text treatment used for the
@@ -261,9 +285,11 @@ struct HomeView: View {
                 }
             }
             Button {
-                // No prefetch here — the selection is already warm, and the
-                // loader claims that entry rather than racing it.
-                path.append(.game(size: newGameSize, difficulty: newGameDifficulty))
+                if progress.savedGame(.standard) != nil {
+                    confirmingNewGame = true
+                } else {
+                    startNewGame()
+                }
             } label: {
                 Text("Play")
                     .font(.headline)
@@ -275,6 +301,13 @@ struct HomeView: View {
             #if os(tvOS)
             .focused($homeFocus, equals: .play)
             #endif
+            .confirmationDialog("Start a new game?", isPresented: $confirmingNewGame,
+                                titleVisibility: .visible) {
+                Button("New game", role: .destructive) { startNewGame() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your game in progress is replaced once you enter something on the new board.")
+            }
         }
         .padding(18)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.surface))

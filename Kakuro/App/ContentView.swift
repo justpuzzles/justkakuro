@@ -34,8 +34,8 @@ struct ContentView: View {
             GameLoaderView(size: size, difficulty: difficulty)
         case .daily(let day):
             GameLoaderView(daily: day)
-        case .resumeGame:
-            ResumeGameView()
+        case .resume(let slot):
+            ResumeGameView(slot: slot)
         case .tutorial(let technique):
             TutorialView(technique: technique)
         case .practice(let technique):
@@ -131,6 +131,7 @@ struct GameLoaderView: View {
 /// save, so the live game was swapped out for `MissingSaveView` mid-celebration
 /// and the win sheet never appeared. The game must outlive its own save.
 struct ResumeGameView: View {
+    let slot: GameSlot
     @Environment(ProgressStore.self) private var progress
 
     @State private var game: KakuroGame?
@@ -140,14 +141,14 @@ struct ResumeGameView: View {
         ZStack {
             Theme.paper.ignoresSafeArea()
             if let game {
-                GameHostView(game: game)
+                GameHostView(game: game, resumed: true)
             } else if resolved {
                 MissingSaveView()
             }
         }
         .onAppear {
             guard !resolved else { return }
-            if let snapshot = progress.loadSavedGame() {
+            if let snapshot = progress.savedGame(slot) {
                 game = KakuroGame(snapshot: snapshot)
             }
             resolved = true
@@ -158,20 +159,34 @@ struct ResumeGameView: View {
 /// Owns the game instance for the screen's lifetime.
 struct GameHostView: View {
     @State var game: KakuroGame
+    /// Restored from a save: its slot already belongs to it, so it may be
+    /// saved before the player's first move.
+    var resumed = false
 
     var body: some View {
-        GameView(game: game)
+        GameView(game: game, resumed: resumed)
     }
 }
 
+/// Reached when the save was gone by the time the screen opened (finished on
+/// another path, or cleared). It used to be a sentence with no way out but
+/// the back button.
 struct MissingSaveView: View {
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         ZStack {
             Theme.paper.ignoresSafeArea()
-            Text("That game is finished. Start a new one from Home.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.inkSoft)
-                .padding()
+            VStack(spacing: 16) {
+                Text("That game is finished. Start a new one from Home.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.inkSoft)
+                    .multilineTextAlignment(.center)
+                Button("Back to Home") { dismiss() }
+                    .font(.headline)
+                    .tint(Theme.indigo)
+            }
+            .padding()
         }
     }
 }
@@ -183,4 +198,5 @@ struct MissingSaveView: View {
         .environment(MasteryTracker())
         .environment(EntitlementStore(source: PreviewEntitlementSource(owned: true)))
         .environment(PaywallPresenter())
+        .environment(TodayClock())
 }

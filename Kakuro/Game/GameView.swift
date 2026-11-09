@@ -3,10 +3,13 @@ import SwiftUI
 /// The play screen: board, pad, toolbar, hints, pause and win states.
 struct GameView: View {
     let game: KakuroGame
+    /// Restored from its slot, so it may be saved before the first move.
+    var resumed = false
     @Environment(ProgressStore.self) private var progress
     @Environment(MasteryTracker.self) private var mastery
     @Environment(EntitlementStore.self) private var entitlements
     @Environment(PaywallPresenter.self) private var paywall
+    @Environment(TodayClock.self) private var clock
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -25,6 +28,9 @@ struct GameView: View {
     /// change so that placement does not count toward unaided mastery.
     @State private var appliedHint = false
     @State private var newBestTime = false
+    /// Set when the win was a daily already solved: nothing was recorded,
+    /// and the sheet says so and shows the first time.
+    @State private var replayOf: TimeInterval?
     /// Presented once the win sheet is gone: two sheets cannot be up at once,
     /// and the paywall is rooted above the NavigationStack.
     @State private var pendingPaywall: PaidFeature?
@@ -97,18 +103,18 @@ struct GameView: View {
         }
         .onChange(of: game.phase) { _, phase in
             if phase == .won {
-                progress.clearSavedGame()
-                // Before recordSolve, so the win sheet's streak line reads the
-                // updated record on its first frame.
-                if let day = game.dailyKey {
-                    progress.recordDailyCompleted(day: day, time: game.elapsed)
-                }
-                newBestTime = progress.recordSolve(
+                progress.clearSavedGame(game.slot)
+                // The daily is recorded before stats inside recordWin, so the
+                // win sheet's streak line reads the updated record on its
+                // first frame; a replayed daily records nothing.
+                let result = progress.recordWin(
                     size: sizeOf(game.puzzle), difficulty: game.difficultyForRecords,
-                    time: game.elapsed)
+                    time: game.elapsed, daily: game.dailyKey)
+                newBestTime = result.newBestTime
+                replayOf = result.firstDailyTime
                 celebrate()
             } else {
-                progress.saveGame(game.snapshot)
+                persist()
             }
         }
         .onChange(of: game.board.entries) { old, new in
@@ -385,9 +391,13 @@ struct GameView: View {
 
     /// Snapshots the game unless it is finished — a won board clears its save
     /// instead, and must not resurrect it on the way out.
+    /// Saves into the game's own slot, but never a board the player has not
+    /// touched: opening a board and backing out used to overwrite the game
+    /// waiting under Continue with an empty one. A resumed game owns its slot
+    /// already, so it always saves.
     private func persist() {
         guard game.phase != .won else { return }
-        progress.saveGame(game.snapshot)
+        progress.saveGame(game.snapshot, hasProgress: resumed || game.hasMoves)
     }
 
     /// Free players keep the error check ("something here is wrong"); the
@@ -522,6 +532,9 @@ struct GameView: View {
         showWinSheet = true
         var spoken = "Solved in \(TimeFormatting.spoken(game.elapsed))"
             + (newBestTime ? ", a new best time." : ".")
+        if let first = replayOf {
+            spoken += " Already solved today in \(TimeFormatting.spoken(first)), so this one is not counted."
+        }
         if game.dailyKey != nil {
             spoken += " \(streak) day streak."
         }
@@ -537,7 +550,7 @@ struct GameView: View {
     /// which an older daily finished late leaves untouched, so it could show a
     /// run that ended weeks ago.
     private var streak: Int {
-        progress.displayStreak(today: DayKey(date: .now))
+        progress.displayStreak(today: clock.today)
     }
 
     /// The weekend Daily hands a free player a large board. The moment they
@@ -556,8 +569,7 @@ struct GameView: View {
             Text("\(streak) day streak")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Theme.ink)
-            if streak == progress.daily.bestStreak
-                && progress.daily.bestStreak > 1 {
+            if progress.daily.isBestStreak(today: clock.today) {
                 Text("· best")
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkSoft)
@@ -592,7 +604,12 @@ struct GameView: View {
             // Taken from recordSolve rather than re-derived by comparing against
             // a store that has already been updated: on an exact tie the old
             // comparison claimed a new best that was never recorded.
-            if newBestTime {
+            if let first = replayOf {
+                Text("A replay. Your daily time stays \(formatTime(first)).")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.inkSoft)
+                    .multilineTextAlignment(.center)
+            } else if newBestTime {
                 Text("New best time")
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkSoft)
@@ -602,8 +619,15 @@ struct GameView: View {
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkSoft)
             }
-            if game.dailyKey != nil {
+            if let day = game.dailyKey {
                 streakLine
+                #if !os(tvOS)
+                ShareLink(item: dailyShare(day).text()) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .tint(Theme.indigo)
+                #endif
             }
             TechniqueRecapView(profile: game.generated.techniqueProfile)
             if offersUnlock {
@@ -668,6 +692,18 @@ struct GameView: View {
                 .buttonStyle(.kakuro)
             }
         }
+    }
+
+    /// Spoiler-free: the day, the time of the *first* solve (a replay does
+    /// not get to share a faster time), the board and the streak.
+    private func dailyShare(_ day: DayKey) -> DailyShare {
+        let spec = DailySeed.spec(for: day)
+        return DailyShare(
+            game: "Just Kakuro", day: day,
+            timeText: formatTime(replayOf ?? game.elapsed),
+            streak: streak,
+            detail: "\(spec.size.displayName) · \(spec.difficulty.displayName)",
+            url: URL(string: "https://apps.apple.com/app/id6796701026"))
     }
 
     private func sizeOf(_ puzzle: KakuroPuzzle) -> BoardSize {

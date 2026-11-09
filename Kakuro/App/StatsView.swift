@@ -2,6 +2,7 @@ import SwiftUI
 
 struct StatsView: View {
     @Environment(ProgressStore.self) private var progress
+    @Environment(TodayClock.self) private var clock
     @Environment(MasteryTracker.self) private var mastery
     @Environment(EntitlementStore.self) private var entitlements
 
@@ -36,7 +37,7 @@ struct StatsView: View {
     }
 
     private var dailyCard: some View {
-        let today = DayKey(date: .now)
+        let today = clock.today
         return VStack(alignment: .leading, spacing: 10) {
             Text("Daily")
                 .font(Theme.heading)

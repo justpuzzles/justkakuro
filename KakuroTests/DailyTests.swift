@@ -113,6 +113,41 @@ struct DailyStreakTests {
         #expect(store.daily.bestStreak == 2)
     }
 
+    /// Replaying a solved daily used to count as another solve: stats, play
+    /// time and a possible "new best" from a board already seen.
+    @Test func aReplayedDailyCountsNothing() {
+        let store = freshStore()
+        let first = store.recordWin(size: .small, difficulty: .easy, time: 100, daily: day(8, 7))
+        #expect(first.counted && first.newBestTime)
+        let replay = store.recordWin(size: .small, difficulty: .easy, time: 40, daily: day(8, 7))
+        #expect(!replay.counted)
+        #expect(!replay.newBestTime)
+        #expect(replay.firstDailyTime == 100)
+        #expect(store.stats.puzzlesSolved == 1)
+        #expect(store.stats.totalPlayTime == 100)
+        #expect(store.bestTime(size: .small, difficulty: .easy) == 100)
+        #expect(store.dailyTime(day(8, 7)) == 100)
+    }
+
+    /// A late first solve of an older daily is a real solve: it counts in
+    /// stats, keeps its time, and leaves the streak alone.
+    @Test func aLateDailyCountsButKeepsTheStreak() {
+        let store = freshStore()
+        store.recordWin(size: .small, difficulty: .easy, time: 100, daily: day(8, 6))
+        store.recordWin(size: .small, difficulty: .easy, time: 100, daily: day(8, 7))
+        let late = store.recordWin(size: .small, difficulty: .easy, time: 90, daily: day(8, 5))
+        #expect(late.counted)
+        #expect(store.stats.puzzlesSolved == 3)
+        #expect(store.daily.currentStreak == 2)
+    }
+
+    @Test func aStandardGameAlwaysCounts() {
+        let store = freshStore()
+        store.recordWin(size: .small, difficulty: .easy, time: 100, daily: nil)
+        store.recordWin(size: .small, difficulty: .easy, time: 100, daily: nil)
+        #expect(store.stats.puzzlesSolved == 2)
+    }
+
     @Test func repeatCompletionIsIdempotent() {
         let store = freshStore()
         store.recordDailyCompleted(day: day(8, 7), time: 100)

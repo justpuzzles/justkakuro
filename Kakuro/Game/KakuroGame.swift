@@ -54,6 +54,17 @@ final class KakuroGame {
 
     var canUndo: Bool { !undoStack.isEmpty }
 
+    /// Which save slot this game lives in: a daily never shares one with a
+    /// standard game, so neither can overwrite the other.
+    var slot: GameSlot { dailyKey == nil ? .standard : .daily }
+
+    /// True once the player has done anything on this board. A visit with no
+    /// moves is never saved, so opening a board and backing out cannot
+    /// replace the game waiting under Continue.
+    var hasMoves: Bool {
+        !undoStack.isEmpty || !board.entries.isEmpty || !board.notes.isEmpty
+    }
+
     func tap(_ pos: GridPosition) {
         guard puzzle.cells[pos.row][pos.col].isWhite else {
             selected = nil
@@ -315,6 +326,8 @@ final class KakuroGame {
         var requestedDifficulty: Difficulty?
         /// Optional for the same reason: saves from 1.0 have no daily.
         var dailyKey: DayKey?
+
+        var slot: GameSlot { dailyKey == nil ? .standard : .daily }
     }
 
     var snapshot: Snapshot {
