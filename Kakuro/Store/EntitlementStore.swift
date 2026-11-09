@@ -120,10 +120,25 @@ final class EntitlementStore {
         Task { await refresh() }
     }
 
+    /// Numbers each `refresh()` as it starts, and remembers the newest one
+    /// whose answer was applied.
+    @ObservationIgnored private var refreshesStarted = 0
+    @ObservationIgnored private var newestApplied = 0
+
     /// Re-reads ownership from StoreKit. A `nil` answer leaves the cached value
     /// untouched — see `Key.unlocked`.
+    ///
+    /// Calls overlap: the launch refresh, the `Transaction.updates` listener,
+    /// purchase and restore each start one, and the enumeration plus the
+    /// reachability round-trip can take seconds. An answer older than one
+    /// already applied is dropped, or a slow launch refresh returning `false`
+    /// could land after an approved Ask to Buy and lock a paying player out.
     func refresh() async {
-        guard let owned = await source.isOwned(StoreProduct.fullUnlock) else { return }
+        refreshesStarted += 1
+        let ticket = refreshesStarted
+        guard let owned = await source.isOwned(StoreProduct.fullUnlock),
+              ticket > newestApplied else { return }
+        newestApplied = ticket
         isUnlocked = owned
         defaults.set(owned, forKey: Key.unlocked)
     }

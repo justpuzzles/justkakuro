@@ -65,7 +65,11 @@ struct NumberPadView: View {
                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 20, weight: .medium))
+                // Scales with Dynamic Type, capped so the key keeps its height
+                // beside the digits (which are sized to their keys on purpose,
+                // docs/ACCESSIBILITY.md).
+                .scaledFont(20, weight: .medium, relativeTo: .title3)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility2)
                 .foregroundStyle(active ? Theme.paper : Theme.ink)
                 .frame(maxWidth: .infinity, minHeight: 52)
                 .background(

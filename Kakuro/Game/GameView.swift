@@ -24,6 +24,9 @@ struct GameView: View {
     /// The running sweep-then-sheet sequence; a tap cancels it and jumps on.
     @State private var winSequence: Task<Void, Never>?
     @State private var successPlayed = false
+    /// Clears a run-complete sweep. Held so a second completion replaces the
+    /// first one's timer instead of being wiped by it 0.4 s in.
+    @State private var sweepReset: Task<Void, Never>?
     /// Set when the player taps Apply on a hint, consumed by the next entry
     /// change so that placement does not count toward unaided mastery.
     @State private var appliedHint = false
@@ -44,6 +47,9 @@ struct GameView: View {
             Theme.paper.ignoresSafeArea()
             layout
                 .padding(16)
+                // The overlay hid the board from sight only: VoiceOver still
+                // read every cell, with actions that silently did nothing.
+                .accessibilityHidden(game.phase == .paused)
                 #if os(tvOS)
                 // The board keeps its focusable cells while the chooser is over
                 // it, so arrowing inside the chooser walked focus straight out
@@ -114,6 +120,8 @@ struct GameView: View {
                 replayOf = result.firstDailyTime
                 celebrate()
             } else {
+                // A hint is a look at the board, which pausing hides.
+                if phase == .paused { hint = nil }
                 persist()
             }
         }
@@ -158,6 +166,7 @@ struct GameView: View {
         .onDisappear {
             winSequence?.cancel()
             winSequence = nil
+            sweepReset?.cancel()
             game.pause()
             persist()
         }
@@ -165,6 +174,10 @@ struct GameView: View {
             if let feature = pendingPaywall {
                 pendingPaywall = nil
                 paywall.present(feature)
+            } else if game.phase == .won {
+                // Done and a swipe down both end here. A swipe used to leave
+                // the player on a solved board with nothing left to do.
+                dismiss()
             }
         }) { winSheet }
         .sheet(item: $tappedClue) { selection in
@@ -177,8 +190,10 @@ struct GameView: View {
                 } onApply: {
                     // Consumed by handleEntriesChange: the placement this makes
                     // is the hint's work, not the player's.
-                    appliedHint = true
-                    game.apply(hint.application)
+                    // Only when it really placed something: a no-op Apply
+                    // left the flag set, and the player's next genuine entry
+                    // then earned no mastery credit.
+                    appliedHint = game.apply(hint.application)
                     self.hint = nil
                 } onDismiss: {
                     self.hint = nil
@@ -253,6 +268,7 @@ struct GameView: View {
                 Label("Hint", systemImage: "lightbulb")
             }
             .accessibilityLabel("Hint")
+            .disabled(game.phase != .playing)
             Button { game.fillAutoNotes() } label: {
                 Label("Auto notes", systemImage: "pencil.circle")
             }
@@ -334,8 +350,7 @@ struct GameView: View {
     }
 
     private var hintHighlights: Set<GridPosition> {
-        guard let hint, hint.level >= .highlight else { return [] }
-        return Set(hint.highlightCells)
+        hint?.visibleCells ?? []
     }
 
     private var statusRow: some View {
@@ -359,6 +374,7 @@ struct GameView: View {
                 Image(systemName: "lightbulb")
             }
             .accessibilityLabel("Hint")
+            .disabled(game.phase != .playing)
         }
         ToolbarItem(placement: .primaryTrailing) {
             Menu {
@@ -407,6 +423,8 @@ struct GameView: View {
     }
 
     private func requestHint() {
+        // Also reachable from the keyboard and the tvOS chooser.
+        guard game.phase == .playing else { return }
         hint = hintEngine.hint(for: game, mastery: mastery,
                                showErrors: progress.settings.showErrors,
                                policy: hintPolicy)
@@ -452,8 +470,10 @@ struct GameView: View {
         if !completed.isEmpty, game.phase != .won {
             Haptics.runComplete()
             withAnimation(Motion.runComplete) { sweep = completed }
-            Task {
+            sweepReset?.cancel()
+            sweepReset = Task {
                 try? await Task.sleep(for: .seconds(0.7))
+                guard !Task.isCancelled else { return }
                 withAnimation(Motion.runComplete) { sweep = [:] }
             }
         }
@@ -650,8 +670,8 @@ struct GameView: View {
         .scrollBounceBehavior(.basedOnSize)
         .safeAreaInset(edge: .bottom) {
             Button {
+                // The sheet's onDismiss leaves the game.
                 showWinSheet = false
-                dismiss()
             } label: {
                 Text("Done")
                     .font(.headline)
@@ -692,6 +712,8 @@ struct GameView: View {
                 .buttonStyle(.kakuro)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
     }
 
     /// Spoiler-free: the day, the time of the *first* solve (a replay does

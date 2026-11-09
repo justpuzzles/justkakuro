@@ -32,6 +32,7 @@ final class ProgressStore {
         static let settings = "kakuro.settings.v1"
         static let lastPlayed = "kakuro.lastPlayed.v1"
         static let daily = "kakuro.daily.v1"
+        static let introSeen = "kakuro.introSeen.v1"
     }
 
     /// The size/difficulty the player last started a game with, so the pickers
@@ -68,6 +69,8 @@ final class ProgressStore {
     private let saves: SaveSlots<GameSlot, KakuroGame.Snapshot>
     private(set) var lastPlayed: GameChoice?
     private(set) var daily = DailyRecord()
+    /// The first-run "New to Kakuro?" card was opened or dismissed.
+    private(set) var introSeen = false
     var settings = Settings() {
         didSet { save(settings, key: Key.settings) }
     }
@@ -81,12 +84,25 @@ final class ProgressStore {
         settings = load(Settings.self, key: Key.settings) ?? Settings()
         lastPlayed = load(GameChoice.self, key: Key.lastPlayed)
         daily = load(DailyRecord.self, key: Key.daily) ?? DailyRecord()
+        introSeen = defaults.bool(forKey: Key.introSeen)
         // 1.1 kept a daily in the one slot there was. Move it to its own, or
         // it would show as the standard Continue game and be overwritten by
         // the next standard game.
         if saves[.standard]?.dailyKey != nil {
             saves.move(from: .standard, to: .daily)
         }
+    }
+
+    /// Show the rules card only to someone who has never played: a 1.1
+    /// player updating to 1.2 has solves or a save, and never sees it.
+    var showsIntro: Bool {
+        !introSeen && stats.puzzlesSolved == 0 && daily.completedTimes.isEmpty
+            && GameSlot.allCases.allSatisfy { savedGame($0) == nil }
+    }
+
+    func markIntroSeen() {
+        introSeen = true
+        defaults.set(true, forKey: Key.introSeen)
     }
 
     /// Records the *requested* size/difficulty for a new game.

@@ -56,6 +56,10 @@ struct HomeView: View {
                         continueCard(.daily, saved)
                     }
 
+                    if progress.showsIntro {
+                        introCard
+                    }
+
                     newGameCard
 
                     HStack(spacing: 12) {
@@ -200,6 +204,49 @@ struct HomeView: View {
         #if os(tvOS)
         .focused($homeFocus, equals: slot == .daily ? .resumeDaily : .resume)
         #endif
+    }
+
+    /// First run: the app's pitch is that it teaches Kakuro, so someone who
+    /// does not know the rules is pointed at them instead of a board they
+    /// cannot read.
+    private var introCard: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Button {
+                progress.markIntroSeen()
+                path.append(.tutorial(nil))
+            } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("New to Kakuro?")
+                        .font(Theme.heading)
+                        .foregroundStyle(Theme.ink)
+                    Text("Learn the rules in two minutes, on a real board.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Start the lesson")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.indigo)
+                        .padding(.top, 4)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.kakuro)
+            .accessibilityIdentifier("introCard")
+            Button {
+                withAnimation(Motion.overlay) { progress.markIntroSeen() }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: Metrics.glyph, weight: .semibold))
+                    .foregroundStyle(Theme.inkSoft)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.kakuro)
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.surface))
     }
 
     private func continueDetail(_ snapshot: KakuroGame.Snapshot) -> String {

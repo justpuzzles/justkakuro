@@ -88,6 +88,10 @@ final class AccessibilityAuditTests: XCTestCase {
         app.buttons["Hint"].firstMatch.tap()
         XCTAssertTrue(app.buttons["Dismiss hint"].waitForExistence(timeout: 5))
         acceptUnattributedBoardDigits = true
+        // The board is random. One run in four on 2026-11-10 drew a clue the
+        // audit flags on contrast (a lone "7", 6×14 pt), the same false
+        // positive as the Daily's; the other three passed.
+        acceptClueNumberContrast = true
         try audit()
     }
 

@@ -222,6 +222,19 @@ import Testing
         #expect(ProgressStore(userDefaults: defaults).savedGame(.daily) != nil)
     }
 
+    @Test func theIntroShowsOnlyBeforeAnyPlayAndStaysDismissed() {
+        let defaults = isolatedDefaults()
+        let store = ProgressStore(userDefaults: defaults)
+        #expect(store.showsIntro)
+        store.markIntroSeen()
+        #expect(!store.showsIntro)
+        #expect(!ProgressStore(userDefaults: defaults).showsIntro)
+
+        let veteran = ProgressStore(userDefaults: isolatedDefaults())
+        veteran.recordSolve(size: .small, difficulty: .easy, time: 60)
+        #expect(!veteran.showsIntro, "a 1.1 player updating must not be told the rules")
+    }
+
     /// A 1.1 standard save stays where it is, under the same key.
     @Test func aOnePointOneStandardSaveStaysTheStandardGame() throws {
         let defaults = isolatedDefaults()

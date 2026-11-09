@@ -18,6 +18,17 @@ struct Hint: Sendable, Equatable {
     /// True when the teaching hint was withheld behind the unlock. The banner
     /// offers to unlock instead of escalating.
     var isLocked: Bool = false
+    /// False when "Tell me more" would do nothing: a free player's error hint
+    /// stops at the region (escalating to the exact cell is the paid ladder).
+    /// 1.1 showed the button anyway, and tapping it changed nothing.
+    var canEscalate: Bool = true
+
+    /// The cells the board actually draws. An error hint shows its region
+    /// from the first rung, since its text says "highlighted"; a teaching
+    /// hint only from `.highlight`, so the nudge stays a nudge.
+    var visibleCells: Set<GridPosition> {
+        isErrorHint || level >= .highlight ? Set(highlightCells) : []
+    }
 }
 
 /// How much the hint engine is allowed to give away.
@@ -39,7 +50,8 @@ struct HintEngine {
     /// never point out contradictions.
     func hint(for game: KakuroGame, mastery: MasteryTracker, showErrors: Bool = true,
               policy: HintPolicy = .full) -> Hint {
-        if showErrors, let errorHint = errorHint(for: game, level: .nudge) {
+        if showErrors, var errorHint = errorHint(for: game, level: .nudge) {
+            errorHint.canEscalate = policy == .full
             return errorHint
         }
         guard let step = LogicalSolver.nextStep(puzzle: game.puzzle, board: game.board) else {
@@ -71,7 +83,9 @@ struct HintEngine {
         guard hint.level < .resolution else { return hint }
         let next = HintLevel(rawValue: hint.level.rawValue + 1) ?? .resolution
         if hint.isErrorHint {
-            return errorHint(for: game, level: next) ?? hint
+            // Straight to the cells: an error's `.technique` rung had the same
+            // text as its nudge, so the first "Tell me more" looked dead.
+            return errorHint(for: game, level: hint.level == .nudge ? .highlight : next) ?? hint
         }
         let step = hint.application
         mastery.recordHint(technique: step.technique, level: next)
@@ -116,10 +130,10 @@ struct HintEngine {
         case .resolution:
             text = "This cell is wrong. Clear it and rework the run from its combinations."
         }
-        return Hint(level: max(level, .highlight) == level ? level : level,
+        return Hint(level: level,
                     application: application,
                     text: text,
-                    highlightCells: level >= .technique ? application.focusCells : [],
+                    highlightCells: application.focusCells,
                     isErrorHint: true)
     }
 }

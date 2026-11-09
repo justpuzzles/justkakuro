@@ -59,7 +59,7 @@ struct StatsView: View {
         HStack(spacing: 0) {
             stat(value: "\(progress.stats.puzzlesSolved)", label: "solved")
             Divider().padding(.vertical, 8)
-            stat(value: formatDuration(progress.stats.totalPlayTime), label: "played")
+            stat(value: formatDuration(progress.stats.totalPlayTime), label: "solving")
             Divider().padding(.vertical, 8)
             stat(value: "\(learnedCount)/\(Technique.allCases.count)", label: "techniques")
         }

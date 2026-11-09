@@ -43,6 +43,8 @@ audit runs on iPhone; every change was built for all five platforms.
   block, (226,228,224) on (43,50,64). The audit flags them only at the
   medium board's clue size, about 12 pt; the small board passes in
   `testBoard`. Filtered on that screen only, and only for numeric labels.
+  Since 1.2 also on the hint screen (`testHint`), whose board is random: one
+  run in four drew a clue the audit flagged the same way.
 - **Mac: the Daily card must keep its Button's own element** (1.1). Wrapping
   it in `.accessibilityElement(children: .ignore)` dropped the press action
   on macOS, so AXPress (and VoiceOver) could not open the Daily while iOS,

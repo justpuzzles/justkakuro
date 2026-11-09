@@ -112,6 +112,19 @@ import Testing
         #expect(!credited.isEmpty, "an unaided correct placement earned no credit")
     }
 
+    /// The same farm one hop removed: place, leave, Continue, undo, place.
+    /// The credited cells now travel in the save.
+    @Test func creditSurvivesSaveAndResume() throws {
+        let game = makeGame()
+        let pos = game.puzzle.whitePositions.min()!
+        game.selected = pos
+        game.enter(game.puzzle.solution(at: pos)!)
+        #expect(game.claimMasteryCredit(at: pos))
+        let data = try JSONEncoder().encode(game.snapshot)
+        let resumed = KakuroGame(snapshot: try JSONDecoder().decode(KakuroGame.Snapshot.self, from: data))
+        #expect(!resumed.claimMasteryCredit(at: pos), "the cell already paid out before the save")
+    }
+
     /// Place, undo, place again used to earn credit every time round.
     @Test func undoAndReplaceDoesNotFarmMastery() {
         let game = makeGame()
