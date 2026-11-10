@@ -196,10 +196,16 @@ does not build.
   and PuzzleKit refreshes it on `NSCalendarDayChanged` and the time-zone and
   clock notifications. `DayKey(date: .now)` in a view body is the 1.1 bug
   (Home stale after midnight); don't reintroduce it.
-- **`EntitlementStore.refresh` drops answers older than one already
-  applied.** The launch refresh, the update listener, purchase and restore
-  all overlap; a slow `false` landing after an Ask to Buy approval relocked a
-  paying player. A newer `nil` (unknown) does not block an older definite answer.
+- **Only the newest `EntitlementStore.refresh` started may write.** The
+  launch refresh, the update listener, purchase and restore all overlap; a
+  slow `false` landing after an Ask to Buy approval relocked a paying player.
+  An older answer is dropped even when the newer one was `nil`, because it may
+  have started before the purchase; dropping only keeps the cached value, so
+  it never downgrades. A verified `.purchased` unlocks at once.
+- **Auto notes are the baseline.** `KakuroGame.markBaseline()` runs after the
+  loader fills Auto notes, and `hasMoves` compares against it. Once a game has
+  saved, it keeps saving (`GameView.ownsSlot`). A replayed, already-solved
+  daily takes no slot.
 
 ## Uniqueness is a runtime guarantee, not a convention
 
