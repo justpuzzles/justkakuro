@@ -43,6 +43,31 @@ import Testing
         #expect(hint.isErrorHint)
     }
 
+    /// Its text says "highlighted runs", so the runs must be drawn from the
+    /// first rung, and the first "Tell me more" must change something.
+    @Test func anErrorHintHighlightsItsRegionAndEscalatesVisibly() {
+        let game = makeGame(Fixtures.tiny2x2Unique)
+        game.tap(GridPosition(row: 1, col: 1))
+        game.enter(2)
+        let engine = HintEngine()
+        let mastery = MasteryTracker()
+        let nudge = engine.hint(for: game, mastery: mastery)
+        #expect(!nudge.visibleCells.isEmpty)
+        #expect(nudge.canEscalate)
+        let next = engine.escalate(nudge, for: game, mastery: mastery)
+        #expect(next.level == .highlight)
+        #expect(next.text != nudge.text)
+        let last = engine.escalate(next, for: game, mastery: mastery)
+        #expect(last.visibleCells == [GridPosition(row: 1, col: 1)])
+    }
+
+    @Test func aTeachingNudgeDrawsNothing() {
+        let game = makeGame(Fixtures.tiny2x2Unique)
+        let nudge = HintEngine().hint(for: game, mastery: MasteryTracker())
+        #expect(!nudge.isErrorHint)
+        #expect(nudge.visibleCells.isEmpty)
+    }
+
     @Test func applyingResolutionIsOneUndoableMove() {
         let game = makeGame(Fixtures.tiny2x2Unique)
         let engine = HintEngine()

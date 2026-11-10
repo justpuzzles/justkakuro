@@ -75,7 +75,7 @@ One non-consumable, `de.kaikunze.kakuro.full`, $4.99. No ads, no subscription. A
 - The fallback path (budget exhausted) ships **pre-verified solution grids**, three per size, not a template plus repair. Searching there is the wrong tool: a Kakuro fill is almost never unique, so the old template loop could churn ~14s on medium and still return an ambiguous board. `bakedFallbacksAreUniqueAndSolvable` re-proves the shipped grids
 - Native -O timings: small ~0.03s, medium ~0.3s, large 1–2s (worst ~7s). Debug simulator is ~5x slower — perf-test budgets account for that
 - Fast engine iteration without the simulator: compile the engine into a CLI binary —
-  `swiftc -O -o bench Kakuro/Engine/*.swift main.swift` (Engine has no UIKit/SwiftUI imports; keep it that way). Write benchmark output to stderr (stdout is block-buffered under a pipe)
+  `swiftc -O -o bench Kakuro/Engine/*.swift ../PuzzleKit/Sources/PuzzleKit/*.swift main.swift` (Engine has no UIKit/SwiftUI imports; keep it that way. Since 1.2 `DayKey` comes from PuzzleKit, so its sources go in the same module; `DailySeed.swift` imports it behind `#if canImport(PuzzleKit)`). Write benchmark output to stderr (stdout is block-buffered under a pipe)
 
 ## Actor isolation in `Kakuro/Design/`
 
@@ -164,6 +164,48 @@ Ported from Hashi (`Engine/DailySeed.swift`). Every player gets the same board f
 - Streak (`ProgressStore.daily`, key `kakuro.daily.v1`): `displayStreak(today:)` is computed, so a missed day shows 0 with nothing running at midnight. **Finishing an older daily late records its time and leaves the streak alone.** Hashi resets the counter to 1 in that case, which breaks a live streak (`finishingAnOlderDailyLateKeepsTheStreak`).
 - Gate: the Daily is free at every size (`FeatureGate.isDailyAvailable`), weekend large boards included; `shouldOfferUnlock` adds a line to the win sheet after a free weekend daily. Stats is no longer locked as a whole: the Daily panel is free, and the rest is locked inline.
 - Dailies also count toward best times and solve stats, as in Hashi.
+
+## PuzzleKit and the 1.2 save model
+
+1.2 is the first game on `../PuzzleKit`, the family's shared local package
+(its README lists what is in v0). It is linked through an
+`XCLocalSwiftPackageReference` in `project.pbxproj`, the one project edit a
+synchronized root group can't make for you, and re-exported once in
+`App/PuzzleKitExports.swift`, so app files and `@testable import Kakuro` tests
+see `DayKey`, `DailyRecord`, `SaveSlots`, `TodayClock` and `DailyShare` without
+importing anything. **A fresh clone of kkai/justkakuro needs `PuzzleKit`
+checked out beside it**; until PuzzleKit has a remote, the GitHub repo alone
+does not build.
+
+- **Two save slots.** `GameSlot.standard` keeps the 1.1 key
+  `kakuro.saveGame.v1` (a downgrade still finds the game); `.daily` is
+  `kakuro.saveGame.daily.v1`. A snapshot picks its slot from its own
+  `dailyKey`, so a daily cannot land in the standard slot. On launch, a 1.1
+  daily found in the old single slot is moved to the daily slot.
+- **A board with no moves is never saved** (`GameView.persist`,
+  `hasProgress: resumed || game.hasMoves`). A resumed game owns its slot, so it
+  saves even before its first move; otherwise undoing everything would leave
+  the slot one move behind. Play asks before starting over a saved standard
+  game, because the new board takes the slot at its first move.
+- **`ProgressStore.recordWin` is the only win path.** It records the daily
+  first, and a `.replay` outcome skips stats and best times. Before 1.2 a
+  replayed daily counted as a second solve and could set a "best" on a board
+  already seen. A late first solve of an older daily still counts.
+- **`TodayClock` is the only source of today.** Home, Stats and the win sheet
+  read `clock.today`; `KakuroApp` refreshes it when the scene becomes active,
+  and PuzzleKit refreshes it on `NSCalendarDayChanged` and the time-zone and
+  clock notifications. `DayKey(date: .now)` in a view body is the 1.1 bug
+  (Home stale after midnight); don't reintroduce it.
+- **Only the newest `EntitlementStore.refresh` started may write.** The
+  launch refresh, the update listener, purchase and restore all overlap; a
+  slow `false` landing after an Ask to Buy approval relocked a paying player.
+  An older answer is dropped even when the newer one was `nil`, because it may
+  have started before the purchase; dropping only keeps the cached value, so
+  it never downgrades. A verified `.purchased` unlocks at once.
+- **Auto notes are the baseline.** `KakuroGame.markBaseline()` runs after the
+  loader fills Auto notes, and `hasMoves` compares against it. Once a game has
+  saved, it keeps saving (`GameView.ownsSlot`). A replayed, already-solved
+  daily takes no slot.
 
 ## Uniqueness is a runtime guarantee, not a convention
 

@@ -7,6 +7,9 @@ struct KakuroApp: App {
     @State private var cache = PuzzleCache()
     @State private var entitlements: EntitlementStore
     @State private var paywall = PaywallPresenter()
+    /// Today's day key for every screen, kept current across midnight.
+    @State private var clock = TodayClock()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         #if DEBUG
@@ -49,6 +52,7 @@ struct KakuroApp: App {
                 .environment(cache)
                 .environment(entitlements)
                 .environment(paywall)
+                .environment(clock)
                 .onAppear {
                     Haptics.enabled = progress.settings.hapticsEnabled
                 }
@@ -58,6 +62,11 @@ struct KakuroApp: App {
                 #if os(macOS)
                 .frame(minWidth: 620, minHeight: 640)
                 #endif
+        }
+        // No day-change notification reaches a suspended app, so a phone
+        // unlocked the next morning would still be on yesterday.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { clock.refresh() }
         }
         #if os(macOS)
         .defaultSize(width: 720, height: 820)

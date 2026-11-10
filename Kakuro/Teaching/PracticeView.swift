@@ -137,8 +137,7 @@ struct PracticeView: View {
     }
 
     private var hintCells: Set<GridPosition> {
-        guard let hint, hint.level >= .highlight else { return [] }
-        return Set(hint.highlightCells)
+        hint?.visibleCells ?? []
     }
 
     private var drillWonOverlay: some View {

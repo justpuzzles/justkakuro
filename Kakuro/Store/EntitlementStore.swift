@@ -120,10 +120,24 @@ final class EntitlementStore {
         Task { await refresh() }
     }
 
+    /// Numbers each `refresh()` as it starts.
+    @ObservationIgnored private var refreshesStarted = 0
+
     /// Re-reads ownership from StoreKit. A `nil` answer leaves the cached value
     /// untouched — see `Key.unlocked`.
+    ///
+    /// Calls overlap: the launch refresh, the `Transaction.updates` listener,
+    /// purchase and restore each start one, and the enumeration plus the
+    /// reachability round-trip can take seconds. Only the newest refresh
+    /// started may write: an older one may have begun before a purchase, so
+    /// its `false` is stale even when the newer one could not tell (`nil`).
+    /// Dropping an answer only ever leaves the cached value in place, which
+    /// is the same thing `nil` does, so it can never downgrade anybody.
     func refresh() async {
-        guard let owned = await source.isOwned(StoreProduct.fullUnlock) else { return }
+        refreshesStarted += 1
+        let ticket = refreshesStarted
+        guard let owned = await source.isOwned(StoreProduct.fullUnlock),
+              ticket == refreshesStarted else { return }
         isUnlocked = owned
         defaults.set(owned, forKey: Key.unlocked)
     }
@@ -147,6 +161,10 @@ final class EntitlementStore {
         do {
             switch try await source.purchase(StoreProduct.fullUnlock) {
             case .purchased:
+                // A verified transaction for this product: unlock now rather
+                // than waiting on an enumeration that may come back unknown.
+                isUnlocked = true
+                defaults.set(true, forKey: Key.unlocked)
                 purchaseState = .idle
                 await refresh()
             case .awaitingApproval:

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1C0FFEE0000000000000003 /* PuzzleKit in Frameworks */ = {isa = PBXBuildFile; productRef = A1C0FFEE0000000000000002 /* PuzzleKit */; };
 		B7053ED62A8B850C0FA9AF69 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6E58B06737C98F7518E16B46 /* Foundation.framework */; };
 /* End PBXBuildFile section */
 
@@ -56,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1C0FFEE0000000000000003 /* PuzzleKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -154,6 +156,9 @@
 				7AC24A5C2E35D8C000111972 /* Kakuro */,
 			);
 			name = Kakuro;
+			packageProductDependencies = (
+				A1C0FFEE0000000000000002 /* PuzzleKit */,
+			);
 			productName = Kakuro;
 			productReference = 7AC24A5A2E35D8C000111972 /* Kakuro.app */;
 			productType = "com.apple.product-type.application";
@@ -207,6 +212,9 @@
 			);
 			mainGroup = 7AC24A512E35D8C000111972;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A1C0FFEE0000000000000001 /* XCLocalSwiftPackageReference "../PuzzleKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7AC24A5B2E35D8C000111972 /* Products */;
 			projectDirPath = "";
@@ -431,7 +439,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Kakuro-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 8H42EZRCCP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -451,7 +459,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = de.kaikunze.kakuro;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -479,7 +487,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Kakuro-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 8H42EZRCCP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -499,7 +507,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = de.kaikunze.kakuro;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -521,11 +529,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 8H42EZRCCP;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = de.kaikunze.kakuroTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -542,11 +550,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 8H42EZRCCP;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = de.kaikunze.kakuroTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -618,6 +626,19 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+/* Begin XCLocalSwiftPackageReference section */
+		A1C0FFEE0000000000000001 /* XCLocalSwiftPackageReference "../PuzzleKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../PuzzleKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1C0FFEE0000000000000002 /* PuzzleKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PuzzleKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 7AC24A522E35D8C000111972 /* Project object */;
 }

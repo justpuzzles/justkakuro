@@ -8,6 +8,9 @@ struct BoardView: View {
     var highlighted: Set<GridPosition> = []
     /// Cells recently completed, for the run sweep (position → stagger index).
     var sweep: [GridPosition: Int] = [:]
+    /// The clue sweep, set once on the solving move. Nil everywhere else,
+    /// including the lessons and a board that opens already solved.
+    var winSweep: WinSweep? = nil
     var onTap: ((GridPosition) -> Void)? = nil
     /// VoiceOver, Switch Control and Voice Control: "Enter 5" and "Clear" on a
     /// cell without going to the pad. Nil (the lessons) offers no actions, so
@@ -112,11 +115,15 @@ struct BoardView: View {
             // of presses needed to cross the board, and the remote has to travel
             // far enough already. The combinations a clue would have shown are
             // still reachable through the hint button.
-            ClueCellView(across: across, down: down, size: size)
+            ClueCellView(across: across, down: down, size: size,
+                         acrossLight: winDelay(winSweep?.acrossStep[pos]),
+                         downLight: winDelay(winSweep?.downStep[pos]))
             #else
             reachable(pos) {
                 ClueCellView(across: across, down: down, size: size,
-                             runs: game.puzzle.runs.filter { $0.clueCell == pos })
+                             runs: game.puzzle.runs.filter { $0.clueCell == pos },
+                             acrossLight: winDelay(winSweep?.acrossStep[pos]),
+                             downLight: winDelay(winSweep?.downStep[pos]))
             } activate: {
                 (onTap ?? { game.tap($0) })(pos)
             }
@@ -129,6 +136,7 @@ struct BoardView: View {
                     size: size,
                     isHighlighted: highlighted.contains(pos),
                     sweepIndex: sweep[pos],
+                    winDelay: winDelay(winSweep?.cellStep[pos]),
                     onAssistiveEdit: onAssistiveEdit
                 )
             } activate: {
@@ -142,6 +150,14 @@ struct BoardView: View {
                 #endif
             }
         }
+    }
+
+    /// Seconds after the solving move at which a cell or sum lights, or nil
+    /// when there is no win (or no run behind that half of a clue). Reduce
+    /// Motion collapses the wave: everything fades together, nothing travels.
+    private func winDelay(_ step: Int?) -> TimeInterval? {
+        guard let winSweep, let step else { return nil }
+        return reduceMotion ? 0 : winSweep.delay(step)
     }
 
     /// Wraps a cell so it can be reached by whatever input the platform has.
@@ -180,6 +196,9 @@ struct ClueCellView: View {
     let size: CGFloat
     /// The runs this clue heads, for VoiceOver. Empty in previews.
     var runs: [Run] = []
+    /// Win sweep: seconds until each sum lights, nil when it never does.
+    var acrossLight: TimeInterval? = nil
+    var downLight: TimeInterval? = nil
 
     var body: some View {
         ZStack {
@@ -188,17 +207,13 @@ struct ClueCellView: View {
                 .stroke(Theme.clueText.opacity(0.45), lineWidth: 0.8)
                 .padding(size * 0.08)
             if let across {
-                Text("\(across)")
-                    .font(Theme.clueFont(size: size * 0.30))
-                    .foregroundStyle(Theme.clueText)
+                ClueSum(value: across, size: size, light: acrossLight)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(.top, size * 0.08)
                     .padding(.trailing, size * 0.10)
             }
             if let down {
-                Text("\(down)")
-                    .font(Theme.clueFont(size: size * 0.30))
-                    .foregroundStyle(Theme.clueText)
+                ClueSum(value: down, size: size, light: downLight)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     .padding(.bottom, size * 0.08)
                     .padding(.leading, size * 0.10)
@@ -209,6 +224,41 @@ struct ClueCellView: View {
         .accessibilityLabel(BoardSpeech.clueLabel(across: across, down: down, runs: runs))
         .accessibilityAddTraits(runs.isEmpty ? [] : .isButton)
         .accessibilityHint(runs.isEmpty ? "" : "Shows the digit sets that still fit")
+    }
+}
+
+/// One sum on a clue cell. On a win it lights as the sweep completes its run:
+/// a solved-tint lozenge swells behind the numeral and fades, the numeral
+/// pops a little. Reduce Motion keeps the colour and drops the pop.
+private struct ClueSum: View {
+    let value: Int
+    let size: CGFloat
+    let light: TimeInterval?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        // Read here: the animator's content closure is Sendable.
+        let pop: CGFloat = reduceMotion ? 0 : 0.22
+        let pad = size * 0.04
+        let corner = size * 0.08
+        return Text("\(value)")
+            .font(Theme.clueFont(size: size * 0.30))
+            .foregroundStyle(Theme.clueText)
+            .keyframeAnimator(initialValue: 0.0, trigger: light != nil) { content, glow in
+                content
+                    .padding(.horizontal, pad)
+                    .background(
+                        RoundedRectangle(cornerRadius: corner, style: .continuous)
+                            .fill(Theme.complete.opacity(glow * 0.9)))
+                    .scaleEffect(1 + pop * glow)
+                    .padding(.horizontal, -pad)
+            } keyframes: { _ in
+                KeyframeTrack {
+                    LinearKeyframe(0.0, duration: light ?? 0)
+                    CubicKeyframe(1.0, duration: Motion.winFlashUp)
+                    CubicKeyframe(0.0, duration: Motion.winFlashDown)
+                }
+            }
     }
 }
 
@@ -228,6 +278,8 @@ struct WhiteCellView: View {
     let size: CGFloat
     let isHighlighted: Bool
     let sweepIndex: Int?
+    /// Win sweep: seconds until this cell flashes, nil when there is no win.
+    var winDelay: TimeInterval? = nil
     var onAssistiveEdit: ((GridPosition, CellEdit) -> Void)? = nil
 
     @State private var entryScale: CGFloat = 1
@@ -248,6 +300,9 @@ struct WhiteCellView: View {
     var body: some View {
         ZStack {
             Rectangle().fill(background)
+            // Always in the tree: a keyframe animator plays when its trigger
+            // changes, so one inserted with the win already set never would.
+            winTint
             if let entry {
                 Text("\(entry)")
                     .font(Theme.digitFont(size: size * 0.52))
@@ -297,6 +352,34 @@ struct WhiteCellView: View {
                 }
             }
         }
+    }
+
+    /// The cell's part in the clue sweep: a flash of the solved tint as the
+    /// wave passes, settling to a faint wash that stays under the win sheet.
+    /// The settle is its own layer with a plain delayed animation, so the end
+    /// state does not depend on what a keyframe animator holds once it ends.
+    private var winTint: some View {
+        let delay = winDelay ?? 0
+        return ZStack {
+            Rectangle()
+                .fill(Theme.complete)
+                .keyframeAnimator(initialValue: 0.0, trigger: winDelay != nil) { content, flash in
+                    content.opacity(flash)
+                } keyframes: { _ in
+                    KeyframeTrack {
+                        LinearKeyframe(0.0, duration: delay)
+                        CubicKeyframe(Motion.winFlashPeak, duration: Motion.winFlashUp)
+                        CubicKeyframe(0.0, duration: Motion.winFlashDown)
+                    }
+                }
+            Rectangle()
+                .fill(Theme.complete)
+                .opacity(winDelay != nil ? Motion.winRestTint : 0)
+                .animation(Motion.winSettle.delay(delay + Motion.winFlashUp),
+                           value: winDelay != nil)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private var background: Color {

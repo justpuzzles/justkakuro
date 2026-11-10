@@ -40,6 +40,15 @@ says so.
 
 ## Building
 
+Kakuro uses [PuzzleKit](https://github.com/justpuzzles/PuzzleKit), the shared
+puzzle package, as a local package at `../PuzzleKit`. Clone both side by side:
+
+```
+git clone https://github.com/kkai/justkakuro.git kakuro
+git clone https://github.com/justpuzzles/PuzzleKit.git PuzzleKit
+cd kakuro
+```
+
 ```
 xcodebuild -project Kakuro.xcodeproj -scheme Kakuro \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5' build

@@ -90,7 +90,7 @@ import Testing
 
         let store = ProgressStore(userDefaults: isolatedDefaults())
         store.saveGame(game.snapshot)
-        let restored = try #require(store.loadSavedGame())
+        let restored = try #require(store.savedGame(.standard))
         let resumed = KakuroGame(snapshot: restored)
         #expect(resumed.board == game.board)
         #expect(resumed.puzzle == game.puzzle)
@@ -146,18 +146,132 @@ import Testing
         game.enter(1)
 
         let store = ProgressStore(userDefaults: defaults)
-        #expect(store.savedGame == nil, "no game should be saved yet")
+        #expect(store.savedGame(.standard) == nil, "no game should be saved yet")
         store.saveGame(game.snapshot)
-        #expect(store.savedGame != nil, "save must be observable right away")
+        #expect(store.savedGame(.standard) != nil, "save must be observable right away")
 
         let relaunched = ProgressStore(userDefaults: defaults)
-        let restored = try #require(relaunched.savedGame)
+        let restored = try #require(relaunched.savedGame(.standard))
         #expect(KakuroGame(snapshot: restored).board == game.board)
 
-        relaunched.clearSavedGame()
-        #expect(relaunched.savedGame == nil)
-        #expect(ProgressStore(userDefaults: defaults).savedGame == nil,
+        relaunched.clearSavedGame(.standard)
+        #expect(relaunched.savedGame(.standard) == nil)
+        #expect(ProgressStore(userDefaults: defaults).savedGame(.standard) == nil,
                 "clearing must survive relaunch too")
+    }
+
+    // MARK: - Save slots (1.2)
+
+    private func dailyGame(_ day: DayKey) -> KakuroGame {
+        let base = makeGame()
+        return KakuroGame(puzzle: base.generated, requestedDifficulty: .easy, dailyKey: day)
+    }
+
+    /// 1.1 had one slot: opening the daily replaced the standard game in
+    /// progress, and the other way round.
+    @Test func aDailyAndAStandardGameKeepSeparateSaves() throws {
+        let store = ProgressStore(userDefaults: isolatedDefaults())
+        let standard = makeGame()
+        standard.tap(GridPosition(row: 1, col: 1))
+        standard.enter(1)
+        store.saveGame(standard.snapshot)
+
+        let daily = dailyGame(DayKey(year: 2026, month: 11, day: 10))
+        daily.tap(GridPosition(row: 1, col: 1))
+        daily.enter(2)
+        store.saveGame(daily.snapshot)
+
+        #expect(try #require(store.savedGame(.standard)).dailyKey == nil)
+        #expect(try #require(store.savedGame(.daily)).dailyKey == DayKey(year: 2026, month: 11, day: 10))
+        #expect(KakuroGame(snapshot: try #require(store.savedGame(.standard))).board == standard.board)
+
+        store.clearSavedGame(.daily)
+        #expect(store.savedGame(.standard) != nil, "winning the daily must not clear the standard game")
+    }
+
+    /// Opening a board and backing out without a move saved the empty board
+    /// over Continue.
+    @Test func aBoardWithNoMovesDoesNotReplaceTheSave() throws {
+        let store = ProgressStore(userDefaults: isolatedDefaults())
+        let inProgress = makeGame()
+        inProgress.tap(GridPosition(row: 1, col: 1))
+        inProgress.enter(1)
+        #expect(inProgress.hasMoves)
+        store.saveGame(inProgress.snapshot, hasProgress: inProgress.hasMoves)
+
+        let untouched = makeGame()
+        #expect(!untouched.hasMoves)
+        store.saveGame(untouched.snapshot, hasProgress: untouched.hasMoves)
+        let kept = KakuroGame(snapshot: try #require(store.savedGame(.standard)))
+        #expect(kept.board == inProgress.board)
+    }
+
+    /// A 1.1 install with the daily in the one slot there was: after the
+    /// update it is the daily slot's, not the standard Continue game.
+    @Test func aOnePointOneDailySaveMovesToTheDailySlot() throws {
+        let defaults = isolatedDefaults()
+        let daily = dailyGame(DayKey(year: 2026, month: 11, day: 9))
+        daily.tap(GridPosition(row: 1, col: 1))
+        daily.enter(3)
+        defaults.set(try JSONEncoder().encode(daily.snapshot), forKey: "kakuro.saveGame.v1")
+
+        let store = ProgressStore(userDefaults: defaults)
+        #expect(store.savedGame(.standard) == nil)
+        #expect(store.savedGame(.daily)?.dailyKey == DayKey(year: 2026, month: 11, day: 9))
+        #expect(defaults.data(forKey: "kakuro.saveGame.v1") == nil)
+        #expect(ProgressStore(userDefaults: defaults).savedGame(.daily) != nil)
+    }
+
+    /// With Auto notes on, a fresh board has notes and an undo entry before
+    /// the player touches it. That is not progress.
+    @Test func autoNotesOnAFreshBoardAreNotProgress() {
+        let game = makeGame()
+        game.fillAutoNotes()
+        game.markBaseline()
+        #expect(!game.hasMoves)
+        game.tap(GridPosition(row: 1, col: 1))
+        game.enter(1)
+        #expect(game.hasMoves)
+    }
+
+    /// Both slots holding a daily after a 1.1 build ran over 1.2: the later
+    /// day wins, and the older never overwrites it.
+    @Test func theMigrationKeepsTheLaterDaily() throws {
+        let defaults = isolatedDefaults()
+        let newer = dailyGame(DayKey(year: 2026, month: 11, day: 10))
+        newer.tap(GridPosition(row: 1, col: 1)); newer.enter(1)
+        let older = dailyGame(DayKey(year: 2026, month: 11, day: 8))
+        older.tap(GridPosition(row: 1, col: 1)); older.enter(2)
+        defaults.set(try JSONEncoder().encode(newer.snapshot), forKey: "kakuro.saveGame.daily.v1")
+        defaults.set(try JSONEncoder().encode(older.snapshot), forKey: "kakuro.saveGame.v1")
+        let store = ProgressStore(userDefaults: defaults)
+        #expect(store.savedGame(.daily)?.dailyKey == DayKey(year: 2026, month: 11, day: 10))
+        #expect(store.savedGame(.standard) == nil)
+    }
+
+    @Test func theIntroShowsOnlyBeforeAnyPlayAndStaysDismissed() {
+        let defaults = isolatedDefaults()
+        let store = ProgressStore(userDefaults: defaults)
+        #expect(store.showsIntro)
+        store.markIntroSeen()
+        #expect(!store.showsIntro)
+        #expect(!ProgressStore(userDefaults: defaults).showsIntro)
+
+        let veteran = ProgressStore(userDefaults: isolatedDefaults())
+        veteran.recordSolve(size: .small, difficulty: .easy, time: 60)
+        #expect(!veteran.showsIntro, "a 1.1 player updating must not be told the rules")
+    }
+
+    /// A 1.1 standard save stays where it is, under the same key.
+    @Test func aOnePointOneStandardSaveStaysTheStandardGame() throws {
+        let defaults = isolatedDefaults()
+        let game = makeGame()
+        game.tap(GridPosition(row: 1, col: 1))
+        game.enter(1)
+        defaults.set(try JSONEncoder().encode(game.snapshot), forKey: "kakuro.saveGame.v1")
+        let store = ProgressStore(userDefaults: defaults)
+        #expect(store.savedGame(.standard) != nil)
+        #expect(store.savedGame(.daily) == nil)
     }
 
     // MARK: - Mastery

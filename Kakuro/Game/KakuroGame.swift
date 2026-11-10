@@ -54,6 +54,29 @@ final class KakuroGame {
 
     var canUndo: Bool { !undoStack.isEmpty }
 
+    /// Which save slot this game lives in: a daily never shares one with a
+    /// standard game, so neither can overwrite the other.
+    var slot: GameSlot { GameSlot(dailyKey: dailyKey) }
+
+    /// The board as it was handed to the player: empty, or with the notes
+    /// Auto notes filled in before the first frame. Not the player's work.
+    private var baseline = BoardState()
+
+    /// Call after any setup the app does on the player's behalf (Auto notes
+    /// on a fresh board), so that setup does not count as progress.
+    func markBaseline() {
+        baseline = board
+    }
+
+    /// True once the player has changed the board. A visit with no moves is
+    /// never saved, so opening a board and backing out cannot replace the
+    /// game waiting under Continue. With Auto notes on, a fresh board already
+    /// has notes and an undo entry, so this compares against the baseline
+    /// rather than against empty.
+    var hasMoves: Bool {
+        board != baseline
+    }
+
     func tap(_ pos: GridPosition) {
         guard puzzle.cells[pos.row][pos.col].isWhite else {
             selected = nil
@@ -185,8 +208,11 @@ final class KakuroGame {
     }
 
     /// Applies a hint's placements/eliminations as one undoable batch.
-    func apply(_ application: TechniqueApplication) {
-        guard phase == .playing else { return }
+    /// Returns whether it changed the board, so a caller that marks the next
+    /// entry as hint-made only does so when there was one.
+    @discardableResult
+    func apply(_ application: TechniqueApplication) -> Bool {
+        guard phase == .playing else { return false }
         var moves: [Move] = []
         for elimination in application.eliminations {
             let old = board.notes(at: elimination.position)
@@ -205,9 +231,10 @@ final class KakuroGame {
                                    old: board.entries[placement.position],
                                    new: placement.digit))
         }
-        guard !moves.isEmpty else { return }
+        guard !moves.isEmpty else { return false }
         perform(moves.count == 1 ? moves[0] : .batch(moves))
         checkWin()
+        return true
     }
 
     /// Fills notes with solver candidates at the basic level only
@@ -315,12 +342,19 @@ final class KakuroGame {
         var requestedDifficulty: Difficulty?
         /// Optional for the same reason: saves from 1.0 have no daily.
         var dailyKey: DayKey?
+
+        /// Cells that already paid out mastery credit. Optional for saves
+        /// from before 1.2; without it place, leave, Continue, undo, place
+        /// again paid the same cell twice.
+        var creditedPositions: Set<GridPosition>?
+
+        var slot: GameSlot { GameSlot(dailyKey: dailyKey) }
     }
 
     var snapshot: Snapshot {
         Snapshot(generated: generated, board: board, undoStack: undoStack,
                  elapsed: elapsed, requestedDifficulty: requestedDifficulty,
-                 dailyKey: dailyKey)
+                 dailyKey: dailyKey, creditedPositions: creditedPositions)
     }
 
     convenience init(snapshot: Snapshot) {
@@ -330,6 +364,7 @@ final class KakuroGame {
         board = snapshot.board
         undoStack = snapshot.undoStack
         elapsed = snapshot.elapsed
+        creditedPositions = snapshot.creditedPositions ?? []
     }
 
     // MARK: - Private

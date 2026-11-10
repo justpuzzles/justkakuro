@@ -163,5 +163,8 @@ import Testing
                                      showErrors: true, policy: .errorsOnly)
         #expect(hint.isErrorHint)
         #expect(!hint.isLocked)
+        // It stops at the region, and says so by offering no dead button.
+        #expect(!hint.canEscalate)
+        #expect(!hint.visibleCells.isEmpty)
     }
 }

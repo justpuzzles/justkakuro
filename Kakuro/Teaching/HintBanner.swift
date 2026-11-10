@@ -49,7 +49,7 @@ struct HintBanner: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.kakuro)
-                } else if hint.level < .resolution {
+                } else if hint.level < .resolution, hint.canEscalate {
                     Button(action: onMore) {
                         Text("Tell me more")
                             .font(.subheadline.weight(.medium))

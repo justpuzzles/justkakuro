@@ -3,10 +3,13 @@ import SwiftUI
 /// The play screen: board, pad, toolbar, hints, pause and win states.
 struct GameView: View {
     let game: KakuroGame
+    /// Restored from its slot, so it may be saved before the first move.
+    var resumed = false
     @Environment(ProgressStore.self) private var progress
     @Environment(MasteryTracker.self) private var mastery
     @Environment(EntitlementStore.self) private var entitlements
     @Environment(PaywallPresenter.self) private var paywall
+    @Environment(TodayClock.self) private var clock
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -16,10 +19,25 @@ struct GameView: View {
     @State private var tappedClue: ClueSelection?
     @State private var sweep: [GridPosition: Int] = [:]
     @State private var showWinSheet = false
+    /// The clue sweep, set once on the solving move.
+    @State private var winSweep: WinSweep?
+    /// The running sweep-then-sheet sequence; a tap cancels it and jumps on.
+    @State private var winSequence: Task<Void, Never>?
+    @State private var successPlayed = false
+    /// Clears a run-complete sweep. Held so a second completion replaces the
+    /// first one's timer instead of being wiped by it 0.4 s in.
+    @State private var sweepReset: Task<Void, Never>?
     /// Set when the player taps Apply on a hint, consumed by the next entry
     /// change so that placement does not count toward unaided mastery.
     @State private var appliedHint = false
     @State private var newBestTime = false
+    /// Set when the win was a daily already solved: nothing was recorded,
+    /// and the sheet says so and shows the first time.
+    @State private var replayOf: TimeInterval?
+    /// This game has taken its slot. From then on it keeps saving even with
+    /// no moves on the board: undoing back to empty used to leave the slot
+    /// holding an older snapshot.
+    @State private var ownsSlot = false
     /// Presented once the win sheet is gone: two sheets cannot be up at once,
     /// and the paywall is rooted above the NavigationStack.
     @State private var pendingPaywall: PaidFeature?
@@ -33,6 +51,9 @@ struct GameView: View {
             Theme.paper.ignoresSafeArea()
             layout
                 .padding(16)
+                // The overlay hid the board from sight only: VoiceOver still
+                // read every cell, with actions that silently did nothing.
+                .accessibilityHidden(game.phase == .paused)
                 #if os(tvOS)
                 // The board keeps its focusable cells while the chooser is over
                 // it, so arrowing inside the chooser walked focus straight out
@@ -44,6 +65,15 @@ struct GameView: View {
                 #endif
             if game.phase == .paused {
                 pauseOverlay
+            }
+            if winSequence != nil {
+                // A tap anywhere skips the sweep straight to the sheet. Hidden
+                // from VoiceOver, which gets the sheet on its own a beat later.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture { presentWinSheet() }
+                    .accessibilityHidden(true)
             }
             #if os(tvOS)
             if choosingDigit {
@@ -83,30 +113,20 @@ struct GameView: View {
         }
         .onChange(of: game.phase) { _, phase in
             if phase == .won {
-                progress.clearSavedGame()
-                // Before recordSolve, so the win sheet's streak line reads the
-                // updated record on its first frame.
-                if let day = game.dailyKey {
-                    progress.recordDailyCompleted(day: day, time: game.elapsed)
-                }
-                newBestTime = progress.recordSolve(
+                progress.clearSavedGame(game.slot)
+                // The daily is recorded before stats inside recordWin, so the
+                // win sheet's streak line reads the updated record on its
+                // first frame; a replayed daily records nothing.
+                let result = progress.recordWin(
                     size: sizeOf(game.puzzle), difficulty: game.difficultyForRecords,
-                    time: game.elapsed)
-                Haptics.win()
-                showWinSheet = true
-                var spoken = "Solved in \(TimeFormatting.spoken(game.elapsed))"
-                    + (newBestTime ? ", a new best time." : ".")
-                if game.dailyKey != nil {
-                    spoken += " \(progress.daily.currentStreak) day streak."
-                }
-                Task {
-                    // After the sheet takes focus, or its own focus change
-                    // cuts the announcement off.
-                    try? await Task.sleep(for: .seconds(0.8))
-                    BoardSpeech.announce(spoken)
-                }
+                    time: game.elapsed, daily: game.dailyKey)
+                newBestTime = result.newBestTime
+                replayOf = result.firstDailyTime
+                celebrate()
             } else {
-                progress.saveGame(game.snapshot)
+                // A hint is a look at the board, which pausing hides.
+                if phase == .paused { hint = nil }
+                persist()
             }
         }
         .onChange(of: game.board.entries) { old, new in
@@ -131,14 +151,40 @@ struct GameView: View {
         // Pause as well as save: leaving via Back otherwise keeps `lastTick`
         // set, exactly the wall-clock folding the scene-phase handler above
         // exists to prevent.
+        #if DEBUG
+        // Eyeballing the clue sweep: fills every cell but the last with its
+        // solution and selects that one, so one digit wins. DEBUG only,
+        // string included.
+        .onAppear {
+            guard ProcessInfo.processInfo.arguments.contains("-KakuroNearlySolved"),
+                  game.phase == .playing else { return }
+            for pos in game.puzzle.whitePositions.sorted().dropLast()
+            where game.board.entry(at: pos) == nil {
+                if case .white(let solution) = game.puzzle.cells[pos.row][pos.col] {
+                    game.place(solution, at: pos)
+                }
+            }
+            game.selected = game.puzzle.whitePositions.first { game.board.entry(at: $0) == nil }
+        }
+        #endif
         .onDisappear {
+            winSequence?.cancel()
+            winSequence = nil
+            sweepReset?.cancel()
             game.pause()
             persist()
         }
         .sheet(isPresented: $showWinSheet, onDismiss: {
             if let feature = pendingPaywall {
                 pendingPaywall = nil
+                // Rooted above the NavigationStack, so it presents over Home.
                 paywall.present(feature)
+            }
+            // Done, a swipe down and "See what's included" all end here, and
+            // all leave the game: there is nothing left to do on a solved
+            // board, and a swipe used to strand the player on one.
+            if game.phase == .won {
+                dismiss()
             }
         }) { winSheet }
         .sheet(item: $tappedClue) { selection in
@@ -151,8 +197,13 @@ struct GameView: View {
                 } onApply: {
                     // Consumed by handleEntriesChange: the placement this makes
                     // is the hint's work, not the player's.
-                    appliedHint = true
+                    // Only when it placed a digit. The flag is consumed by the
+                    // next change to entries, so a no-op Apply, or one that
+                    // only removed candidates, left it set and the player's
+                    // next genuine entry earned no mastery credit.
+                    let entriesBefore = game.board.entries
                     game.apply(hint.application)
+                    appliedHint = game.board.entries != entriesBefore
                     self.hint = nil
                 } onDismiss: {
                     self.hint = nil
@@ -227,6 +278,7 @@ struct GameView: View {
                 Label("Hint", systemImage: "lightbulb")
             }
             .accessibilityLabel("Hint")
+            .disabled(game.phase != .playing)
             Button { game.fillAutoNotes() } label: {
                 Label("Auto notes", systemImage: "pencil.circle")
             }
@@ -297,7 +349,7 @@ struct GameView: View {
     /// and land on the nearest cell inside it, and `@FocusState` still holds the
     /// cell you left, so you come back where you were.
     private var boardSection: some View {
-        BoardView(game: game, highlighted: hintHighlights, sweep: sweep,
+        BoardView(game: game, highlighted: hintHighlights, sweep: sweep, winSweep: winSweep,
                   onTap: { pos in handleTap(pos) },
                   onAssistiveEdit: { pos, edit in assistiveEdit(pos, edit) },
                   onActivate: { _ in
@@ -308,8 +360,7 @@ struct GameView: View {
     }
 
     private var hintHighlights: Set<GridPosition> {
-        guard let hint, hint.level >= .highlight else { return [] }
-        return Set(hint.highlightCells)
+        hint?.visibleCells ?? []
     }
 
     private var statusRow: some View {
@@ -333,6 +384,7 @@ struct GameView: View {
                 Image(systemName: "lightbulb")
             }
             .accessibilityLabel("Hint")
+            .disabled(game.phase != .playing)
         }
         ToolbarItem(placement: .primaryTrailing) {
             Menu {
@@ -365,9 +417,18 @@ struct GameView: View {
 
     /// Snapshots the game unless it is finished — a won board clears its save
     /// instead, and must not resurrect it on the way out.
+    /// Saves into the game's own slot, but never a board the player has not
+    /// touched: opening a board and backing out used to overwrite the game
+    /// waiting under Continue with an empty one. A resumed game owns its slot
+    /// already, so it always saves.
     private func persist() {
         guard game.phase != .won else { return }
-        progress.saveGame(game.snapshot)
+        // Replaying a solved daily is just for fun: it can't count, so it
+        // takes no slot (it would only resurface as a Continue card for a
+        // daily that can never be recorded).
+        if let day = game.dailyKey, progress.hasCompletedDaily(day) { return }
+        if resumed || game.hasMoves { ownsSlot = true }
+        progress.saveGame(game.snapshot, hasProgress: ownsSlot)
     }
 
     /// Free players keep the error check ("something here is wrong"); the
@@ -377,6 +438,8 @@ struct GameView: View {
     }
 
     private func requestHint() {
+        // Also reachable from the keyboard and the tvOS chooser.
+        guard game.phase == .playing else { return }
         hint = hintEngine.hint(for: game, mastery: mastery,
                                showErrors: progress.settings.showErrors,
                                policy: hintPolicy)
@@ -418,11 +481,14 @@ struct GameView: View {
                                                    puzzle: game.puzzle) {
             BoardSpeech.announce(spoken)
         }
-        if !completed.isEmpty {
+        // The solving move's runs are the clue sweep's to celebrate.
+        if !completed.isEmpty, game.phase != .won {
             Haptics.runComplete()
             withAnimation(Motion.runComplete) { sweep = completed }
-            Task {
+            sweepReset?.cancel()
+            sweepReset = Task {
                 try? await Task.sleep(for: .seconds(0.7))
+                guard !Task.isCancelled else { return }
                 withAnimation(Motion.runComplete) { sweep = [:] }
             }
         }
@@ -458,6 +524,70 @@ struct GameView: View {
 
     // MARK: - Win
 
+    /// The solving move: the clue sweep crosses the board corner to corner,
+    /// light run-complete pulses ride along with it, `.success` lands as the
+    /// last cell crests, and the sheet follows. About 0.85 s on any board size,
+    /// a quarter of that under Reduce Motion, where every cell fades at once.
+    private func celebrate() {
+        let sweepPlan = WinSweep(puzzle: game.puzzle, span: Motion.winSweepSpan,
+                                 maxStagger: Motion.runCompleteStagger)
+        sweep = [:]
+        winSweep = sweepPlan
+        let travel = reduceMotion ? 0 : sweepPlan.duration
+        Haptics.runComplete()
+        winSequence = Task {
+            if travel > 0 {
+                for _ in 0..<2 {
+                    try? await Task.sleep(for: .seconds(travel / 2))
+                    guard !Task.isCancelled else { return }
+                    Haptics.runComplete()
+                }
+            }
+            try? await Task.sleep(for: .seconds(Motion.winFlashUp))
+            guard !Task.isCancelled else { return }
+            playSuccess()
+            try? await Task.sleep(for: .seconds(Motion.winSheetLead))
+            guard !Task.isCancelled else { return }
+            presentWinSheet()
+        }
+    }
+
+    private func playSuccess() {
+        guard !successPlayed else { return }
+        successPlayed = true
+        Haptics.win()
+    }
+
+    /// End of the sequence, or a tap that skipped it. Idempotent.
+    private func presentWinSheet() {
+        winSequence?.cancel()
+        winSequence = nil
+        playSuccess()
+        guard !showWinSheet else { return }
+        showWinSheet = true
+        var spoken = "Solved in \(TimeFormatting.spoken(game.elapsed))"
+            + (newBestTime ? ", a new best time." : ".")
+        if let first = replayOf {
+            spoken += " Already solved in \(TimeFormatting.spoken(first)), so this one is not counted."
+        }
+        if game.dailyKey != nil {
+            spoken += " \(streak) day streak."
+        }
+        Task {
+            // After the sheet takes focus, or its own focus change
+            // cuts the announcement off.
+            try? await Task.sleep(for: .seconds(0.8))
+            BoardSpeech.announce(spoken)
+        }
+    }
+
+    /// The streak as it stands today. `currentStreak` is the stored counter,
+    /// which an older daily finished late leaves untouched, so it could show a
+    /// run that ended weeks ago.
+    private var streak: Int {
+        progress.displayStreak(today: clock.today)
+    }
+
     /// The weekend Daily hands a free player a large board. The moment they
     /// solve it is the one moment worth making the case.
     private var offersUnlock: Bool {
@@ -471,11 +601,10 @@ struct GameView: View {
             Image(systemName: "flame.fill")
                 .foregroundStyle(Theme.indigo)
                 .accessibilityHidden(true)
-            Text("\(progress.daily.currentStreak) day streak")
+            Text("\(streak) day streak")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Theme.ink)
-            if progress.daily.currentStreak == progress.daily.bestStreak
-                && progress.daily.bestStreak > 1 {
+            if progress.daily.isBestStreak(today: clock.today) {
                 Text("· best")
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkSoft)
@@ -490,17 +619,32 @@ struct GameView: View {
     private var winSheet: some View {
         ScrollView {
         VStack(spacing: 20) {
-            Text(game.dailyKey != nil ? "Daily solved" : "Solved")
-                .font(Theme.title)
-                .foregroundStyle(Theme.ink)
-            Text(formatTime(game.elapsed))
-                .scaledDigitFont(40, relativeTo: .largeTitle)
-                .accessibilityLabel(TimeFormatting.spoken(game.elapsed))
-                .foregroundStyle(Theme.indigo)
+            // Leads with the time: it is what the player just earned.
+            VStack(spacing: 6) {
+                Text(formatTime(game.elapsed))
+                    .scaledDigitFont(40, relativeTo: .largeTitle)
+                    .accessibilityLabel(TimeFormatting.spoken(game.elapsed))
+                    .foregroundStyle(Theme.indigo)
+                Text(game.dailyKey != nil ? "Daily solved" : "Solved")
+                    .font(Theme.title)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityAddTraits(.isHeader)
+                if let techniques = WinSummary.techniquesLine(
+                    profile: game.generated.techniqueProfile) {
+                    Text(techniques)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkSoft)
+                }
+            }
             // Taken from recordSolve rather than re-derived by comparing against
             // a store that has already been updated: on an exact tie the old
             // comparison claimed a new best that was never recorded.
-            if newBestTime {
+            if let first = replayOf {
+                Text("A replay. Your daily time stays \(formatTime(first)).")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.inkSoft)
+                    .multilineTextAlignment(.center)
+            } else if newBestTime {
                 Text("New best time")
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkSoft)
@@ -510,8 +654,15 @@ struct GameView: View {
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkSoft)
             }
-            if game.dailyKey != nil {
+            if let day = game.dailyKey {
                 streakLine
+                #if !os(tvOS)
+                ShareLink(item: dailyShare(day).text()) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .tint(Theme.indigo)
+                #endif
             }
             TechniqueRecapView(profile: game.generated.techniqueProfile)
             if offersUnlock {
@@ -534,8 +685,8 @@ struct GameView: View {
         .scrollBounceBehavior(.basedOnSize)
         .safeAreaInset(edge: .bottom) {
             Button {
+                // The sheet's onDismiss leaves the game.
                 showWinSheet = false
-                dismiss()
             } label: {
                 Text("Done")
                     .font(.headline)
@@ -576,6 +727,20 @@ struct GameView: View {
                 .buttonStyle(.kakuro)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+    }
+
+    /// Spoiler-free: the day, the time of the *first* solve (a replay does
+    /// not get to share a faster time), the board and the streak.
+    private func dailyShare(_ day: DayKey) -> DailyShare {
+        let spec = DailySeed.spec(for: day)
+        return DailyShare(
+            game: "Just Kakuro", day: day,
+            timeText: formatTime(replayOf ?? game.elapsed),
+            streak: streak,
+            detail: "\(spec.size.displayName) · \(spec.difficulty.displayName)",
+            url: URL(string: "https://apps.apple.com/app/id6796701026"))
     }
 
     private func sizeOf(_ puzzle: KakuroPuzzle) -> BoardSize {

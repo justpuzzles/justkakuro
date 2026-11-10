@@ -49,6 +49,70 @@ import StoreKit
         EntitlementStore(userDefaults: scratch(name), source: source)
     }
 
+    /// Answers `isOwned` in the order the test releases them, not the order
+    /// they were asked.
+    private final class GatedSource: EntitlementSource, @unchecked Sendable {
+        private var waiting: [CheckedContinuation<Bool?, Never>] = []
+        private(set) var calls = 0
+        func isOwned(_ productID: String) async -> Bool? {
+            await withCheckedContinuation { c in
+                calls += 1
+                waiting.append(c)
+            }
+        }
+        func answer(call index: Int, with value: Bool?) { waiting[index].resume(returning: value) }
+        func product(_ productID: String) async -> Product? { nil }
+        func purchase(_ productID: String) async throws -> PurchaseOutcome { .cancelled }
+        func restore() async throws {}
+        func transactionUpdates() -> AsyncStream<Void> { AsyncStream { $0.finish() } }
+    }
+
+    /// A slow launch refresh answering `false` after a newer refresh said
+    /// `true` (an approved Ask to Buy) used to relock the paying player.
+    @Test func aStaleRefreshCannotOverwriteANewerAnswer() async {
+        let gated = GatedSource()
+        let defaults = scratch("race")
+        let s = EntitlementStore(userDefaults: defaults, source: gated)   // starts call 0
+        let newer = Task { await s.refresh() }                           // call 1
+        while gated.calls < 2 { await Task.yield() }
+        gated.answer(call: 1, with: true)
+        await newer.value
+        #expect(s.isUnlocked)
+        gated.answer(call: 0, with: false)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(s.isUnlocked, "the older answer arrived last and must be dropped")
+        #expect(defaults.bool(forKey: "kakuro.entitlement.v1"))
+    }
+
+    /// The newer refresh could not tell (`nil`). The older one may have
+    /// started before a purchase, so its `false` must not land either.
+    @Test func anOlderFalseIsDroppedEvenWhenTheNewerAnswerIsUnknown() async {
+        let gated = GatedSource()
+        let defaults = scratch("unknown")
+        defaults.set(true, forKey: "kakuro.entitlement.v1")    // bought earlier
+        let s = EntitlementStore(userDefaults: defaults, source: gated)
+        let newer = Task { await s.refresh() }
+        while gated.calls < 2 { await Task.yield() }
+        gated.answer(call: 1, with: nil)
+        await newer.value
+        gated.answer(call: 0, with: false)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(s.isUnlocked, "the stale false must not relock a paying player")
+    }
+
+    /// The only refresh in flight still writes, downgrades included (a
+    /// refund must lock).
+    @Test func theNewestRefreshStillDowngrades() async {
+        let gated = GatedSource()
+        let defaults = scratch("refund")
+        defaults.set(true, forKey: "kakuro.entitlement.v1")
+        let s = EntitlementStore(userDefaults: defaults, source: gated)
+        while gated.calls < 1 { await Task.yield() }
+        gated.answer(call: 0, with: false)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(!s.isUnlocked)
+    }
+
     // MARK: - Purchase outcomes
 
     /// Ask to Buy used to be indistinguishable from a cancelled sheet: the

@@ -1,0 +1,7 @@
+The Daily and your own game now keep separate saves. Opening today's Daily no longer replaces the board you were halfway through, and looking at a board without entering anything never touches the game waiting under Continue. If you start a new game while one is saved, Kakuro asks first.
+
+Playing a Daily again is just for fun now: it no longer counts as another solve or sets a best time.
+
+Home turns over to the new Daily at midnight, even if the app stayed open overnight.
+
+Solving a board now runs a sweep across its clues before the results. New players get a short pointer to the rules lesson, and the "something doesn't add up" hint now highlights the runs it means.

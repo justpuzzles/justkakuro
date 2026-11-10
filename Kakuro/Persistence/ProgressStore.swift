@@ -1,20 +1,44 @@
 import Foundation
 import Observation
 
-/// All persisted progress: settings, best times, stats, mastery, the daily
-/// streak, and the in-progress game. UserDefaults + Codable with versioned keys.
+/// The two save slots. A standard game and a daily each keep their own, so
+/// starting one never overwrites the other (1.1 had a single shared slot).
+enum GameSlot: String, Hashable, Sendable, CaseIterable {
+    case standard
+    case daily
+
+    /// The one place the rule lives: a game with a day is a daily.
+    init(dailyKey: DayKey?) {
+        self = dailyKey == nil ? .standard : .daily
+    }
+}
+
+/// The result of recording a solve, for the win sheet.
+struct SolveResult: Equatable {
+    var newBestTime: Bool
+    /// Set for a daily that was already solved: nothing was recorded, and
+    /// this is the time of the first solve.
+    var firstDailyTime: TimeInterval?
+
+    var counted: Bool { firstDailyTime == nil }
+}
+
 @Observable @MainActor
 final class ProgressStore {
     private let defaults: UserDefaults
 
     private enum Key {
         static let bestTimes = "kakuro.bestTimes.v1"
+        /// The 1.1 single slot. Kept as the standard slot's key, so a saved
+        /// game survives the update and a downgrade still finds it.
         static let saveGame = "kakuro.saveGame.v1"
+        static let saveGameDaily = "kakuro.saveGame.daily.v1"
         static let stats = "kakuro.stats.v1"
         static let mastery = "kakuro.mastery.v1"
         static let settings = "kakuro.settings.v1"
         static let lastPlayed = "kakuro.lastPlayed.v1"
         static let daily = "kakuro.daily.v1"
+        static let introSeen = "kakuro.introSeen.v1"
     }
 
     /// The size/difficulty the player last started a game with, so the pickers
@@ -43,35 +67,55 @@ final class ProgressStore {
         let difficulty: Difficulty
     }
 
-    /// The daily-puzzle record. `completedTimes` is keyed by `DayKey.isoString`
-    /// so the JSON stays readable and time-zone-free.
-    struct DailyRecord: Codable, Equatable {
-        var lastCompleted: DayKey?
-        var currentStreak = 0
-        var bestStreak = 0
-        var completedTimes: [String: TimeInterval] = [:]
-    }
-
     private(set) var bestTimes: [BestTimeKey: TimeInterval] = [:]
     private(set) var stats = Stats()
-    /// Mirrors the persisted save. Held as observable state rather than re-read
-    /// on demand so the Continue card appears the moment a game is saved —
+    /// The saved games, one per slot. Observable state rather than re-read on
+    /// demand so the Continue card appears the moment a game is saved —
     /// reading UserDefaults inside a view body never invalidates it.
-    private(set) var savedGame: KakuroGame.Snapshot?
+    private let saves: SaveSlots<GameSlot, KakuroGame.Snapshot>
     private(set) var lastPlayed: GameChoice?
     private(set) var daily = DailyRecord()
+    /// The first-run "New to Kakuro?" card was opened or dismissed.
+    private(set) var introSeen = false
     var settings = Settings() {
         didSet { save(settings, key: Key.settings) }
     }
 
     init(userDefaults: UserDefaults = .standard) {
         self.defaults = userDefaults
+        saves = SaveSlots(defaults: userDefaults,
+                          keys: [.standard: Key.saveGame, .daily: Key.saveGameDaily])
         bestTimes = load([BestTimeKey: TimeInterval].self, key: Key.bestTimes) ?? [:]
         stats = load(Stats.self, key: Key.stats) ?? Stats()
         settings = load(Settings.self, key: Key.settings) ?? Settings()
-        savedGame = load(KakuroGame.Snapshot.self, key: Key.saveGame)
         lastPlayed = load(GameChoice.self, key: Key.lastPlayed)
         daily = load(DailyRecord.self, key: Key.daily) ?? DailyRecord()
+        introSeen = defaults.bool(forKey: Key.introSeen)
+        // 1.1 kept a daily in the one slot there was. Move it to its own, or
+        // it would show as the standard Continue game and be overwritten by
+        // the next standard game.
+        // If the daily slot is taken too (a 1.1 build ran after 1.2), the
+        // later day wins and the other is dropped rather than overwriting
+        // blindly.
+        if let legacyDay = saves[.standard]?.dailyKey {
+            if let existing = saves[.daily]?.dailyKey, !(existing < legacyDay) {
+                saves.clear(.standard)
+            } else {
+                saves.move(from: .standard, to: .daily)
+            }
+        }
+    }
+
+    /// Show the rules card only to someone who has never played: a 1.1
+    /// player updating to 1.2 has solves or a save, and never sees it.
+    var showsIntro: Bool {
+        !introSeen && stats.puzzlesSolved == 0 && daily.completedTimes.isEmpty
+            && GameSlot.allCases.allSatisfy { savedGame($0) == nil }
+    }
+
+    func markIntroSeen() {
+        introSeen = true
+        defaults.set(true, forKey: Key.introSeen)
     }
 
     /// Records the *requested* size/difficulty for a new game.
@@ -88,7 +132,9 @@ final class ProgressStore {
         bestTimes[BestTimeKey(size: size, difficulty: difficulty)]
     }
 
-    /// Records a solve; returns true when it's a new best time.
+    /// Records a solve; returns true when it's a new best time. Counts
+    /// unconditionally: callers that may be replaying a daily go through
+    /// `recordWin` instead.
     @discardableResult
     func recordSolve(size: BoardSize, difficulty: Difficulty, time: TimeInterval) -> Bool {
         stats.puzzlesSolved += 1
@@ -106,63 +152,70 @@ final class ProgressStore {
         return isRecord
     }
 
-    // MARK: - Daily streak
+    /// Everything a won game records, in one place: the daily first (so the
+    /// win sheet's streak reads the new record on its first frame), then
+    /// stats and best times, unless the daily was already solved. A replayed
+    /// daily used to count again: a second solve, its time folded into play
+    /// time, and a "new best" from a board the player had already seen.
+    func recordWin(size: BoardSize, difficulty: Difficulty, time: TimeInterval,
+                   daily day: DayKey?) -> SolveResult {
+        if let day {
+            let outcome = recordDailyCompleted(day: day, time: time)
+            if case .replay(let first) = outcome {
+                return SolveResult(newBestTime: false, firstDailyTime: first)
+            }
+        }
+        let best = recordSolve(size: size, difficulty: difficulty, time: time)
+        return SolveResult(newBestTime: best, firstDailyTime: nil)
+    }
+
+    // MARK: - Daily streak (PuzzleKit's DailyRecord, under the 1.1 key)
 
     func hasCompletedDaily(_ day: DayKey) -> Bool {
-        daily.completedTimes[day.isoString] != nil
+        daily.hasCompleted(day)
     }
 
     func dailyTime(_ day: DayKey) -> TimeInterval? {
-        daily.completedTimes[day.isoString]
+        daily.time(for: day)
     }
 
     /// True when yesterday's daily kept the streak alive and today's is still
     /// open — the streak ends at midnight unless today is solved.
     func streakIsAtRisk(today: DayKey) -> Bool {
-        daily.currentStreak > 0
-            && daily.lastCompleted == today.previous()
-            && !hasCompletedDaily(today)
+        daily.isAtRisk(today: today)
     }
 
     /// The streak as of `today`. Computed, never stored: a missed day shows 0
     /// without anything having to run at midnight.
     func displayStreak(today: DayKey) -> Int {
-        guard let last = daily.lastCompleted else { return 0 }
-        if last == today || last == today.previous() { return daily.currentStreak }
-        return 0
+        daily.displayStreak(today: today)
     }
 
-    /// Records a completed daily. Idempotent per day; increments on
-    /// consecutive days and restarts at 1 after a gap. `lastCompleted` only
-    /// moves forward, so finishing an older saved daily late can't rewind it.
-    func recordDailyCompleted(day: DayKey, time: TimeInterval) {
-        guard !hasCompletedDaily(day) else { return }
-        daily.completedTimes[day.isoString] = time
-        if let last = daily.lastCompleted, !(last < day) {
-            // An older day finished after a newer one: record the time only.
+    /// Records a completed daily. Idempotent per day (a replay records
+    /// nothing); finishing an older daily late keeps the streak.
+    @discardableResult
+    func recordDailyCompleted(day: DayKey, time: TimeInterval) -> DailyOutcome {
+        let outcome = daily.record(day: day, time: time)
+        if !outcome.isReplay {
             save(daily, key: Key.daily)
-            return
         }
-        daily.currentStreak = daily.lastCompleted == day.previous() ? daily.currentStreak + 1 : 1
-        daily.lastCompleted = day
-        daily.bestStreak = max(daily.bestStreak, daily.currentStreak)
-        save(daily, key: Key.daily)
+        return outcome
     }
 
     // MARK: - Save game
 
-    func saveGame(_ snapshot: KakuroGame.Snapshot) {
-        savedGame = snapshot
-        save(snapshot, key: Key.saveGame)
+    func savedGame(_ slot: GameSlot) -> KakuroGame.Snapshot? {
+        saves[slot]
     }
 
-    func loadSavedGame() -> KakuroGame.Snapshot? {
-        savedGame
+    /// Saves into the snapshot's own slot. `hasProgress: false` (a board the
+    /// player has not touched) keeps whatever that slot already holds.
+    func saveGame(_ snapshot: KakuroGame.Snapshot, hasProgress: Bool = true) {
+        saves.save(snapshot, in: snapshot.slot, hasProgress: hasProgress)
     }
 
-    func clearSavedGame() {
-        savedGame = nil
-        defaults.removeObject(forKey: Key.saveGame)
+    func clearSavedGame(_ slot: GameSlot) {
+        saves.clear(slot)
     }
 
     // MARK: - Mastery (used by MasteryTracker)

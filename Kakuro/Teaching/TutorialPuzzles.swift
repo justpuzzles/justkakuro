@@ -206,9 +206,18 @@ nonisolated enum TutorialPuzzles {
     @MainActor
     static func generatedLesson(for technique: Technique,
                                 control: KakuroGenerator.Control = .none) async -> TutorialLesson {
-        let generated = await Task.detached(priority: .userInitiated) {
+        // `await Task.detached {}.value` does not forward cancellation, and
+        // `control.isCancelled` is evaluated on the detached task, so Back
+        // used to leave the generator running to the end. Forwarded here the
+        // way PracticeView.buildDrill does it.
+        let task = Task.detached(priority: .userInitiated) {
             PracticeDrills.drillPuzzle(for: technique, control: control)
-        }.value
+        }
+        let generated = await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
         return TutorialLesson(
             id: "t\(technique.rawValue)",
             technique: technique,
