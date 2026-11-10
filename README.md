@@ -44,7 +44,7 @@ Kakuro uses [PuzzleKit](https://github.com/justpuzzles/PuzzleKit), the shared
 puzzle package, as a local package at `../PuzzleKit`. Clone both side by side:
 
 ```
-git clone https://github.com/kkai/justkakuro.git kakuro
+git clone https://github.com/justpuzzles/justkakuro.git kakuro
 git clone https://github.com/justpuzzles/PuzzleKit.git PuzzleKit
 cd kakuro
 ```
