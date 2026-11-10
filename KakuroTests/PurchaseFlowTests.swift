@@ -84,18 +84,33 @@ import StoreKit
         #expect(defaults.bool(forKey: "kakuro.entitlement.v1"))
     }
 
-    /// When the newer refresh could not tell (`nil`), the older definite
-    /// answer still counts.
-    @Test func anOlderAnswerStillAppliesWhenTheNewerOneWasUnknown() async {
+    /// The newer refresh could not tell (`nil`). The older one may have
+    /// started before a purchase, so its `false` must not land either.
+    @Test func anOlderFalseIsDroppedEvenWhenTheNewerAnswerIsUnknown() async {
         let gated = GatedSource()
-        let s = EntitlementStore(userDefaults: scratch("unknown"), source: gated)
+        let defaults = scratch("unknown")
+        defaults.set(true, forKey: "kakuro.entitlement.v1")    // bought earlier
+        let s = EntitlementStore(userDefaults: defaults, source: gated)
         let newer = Task { await s.refresh() }
         while gated.calls < 2 { await Task.yield() }
         gated.answer(call: 1, with: nil)
         await newer.value
-        gated.answer(call: 0, with: true)
+        gated.answer(call: 0, with: false)
         for _ in 0..<20 { await Task.yield() }
-        #expect(s.isUnlocked)
+        #expect(s.isUnlocked, "the stale false must not relock a paying player")
+    }
+
+    /// The only refresh in flight still writes, downgrades included (a
+    /// refund must lock).
+    @Test func theNewestRefreshStillDowngrades() async {
+        let gated = GatedSource()
+        let defaults = scratch("refund")
+        defaults.set(true, forKey: "kakuro.entitlement.v1")
+        let s = EntitlementStore(userDefaults: defaults, source: gated)
+        while gated.calls < 1 { await Task.yield() }
+        gated.answer(call: 0, with: false)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(!s.isUnlocked)
     }
 
     // MARK: - Purchase outcomes

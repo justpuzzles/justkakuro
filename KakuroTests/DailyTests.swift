@@ -250,7 +250,7 @@ struct DayKeyCalendarTests {
     /// a Japanese-calendar year (Reiwa 8) would otherwise seed a different board.
     @Test func defaultCalendarIsGregorianLocalTime() {
         #expect(DayKey.localCalendar.identifier == .gregorian)
-        #expect(DayKey.localCalendar.timeZone == TimeZone.current)
+        #expect(DayKey.localCalendar.timeZone.identifier == TimeZone.current.identifier)
         let date = Date(timeIntervalSince1970: 1_790_000_000)
         let parts = DayKey.localCalendar.dateComponents([.year, .month, .day], from: date)
         #expect(DayKey(date: date) == DayKey(year: parts.year!, month: parts.month!, day: parts.day!))

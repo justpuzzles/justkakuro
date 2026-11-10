@@ -120,25 +120,24 @@ final class EntitlementStore {
         Task { await refresh() }
     }
 
-    /// Numbers each `refresh()` as it starts, and remembers the newest one
-    /// whose answer was applied.
+    /// Numbers each `refresh()` as it starts.
     @ObservationIgnored private var refreshesStarted = 0
-    @ObservationIgnored private var newestApplied = 0
 
     /// Re-reads ownership from StoreKit. A `nil` answer leaves the cached value
     /// untouched — see `Key.unlocked`.
     ///
     /// Calls overlap: the launch refresh, the `Transaction.updates` listener,
     /// purchase and restore each start one, and the enumeration plus the
-    /// reachability round-trip can take seconds. An answer older than one
-    /// already applied is dropped, or a slow launch refresh returning `false`
-    /// could land after an approved Ask to Buy and lock a paying player out.
+    /// reachability round-trip can take seconds. Only the newest refresh
+    /// started may write: an older one may have begun before a purchase, so
+    /// its `false` is stale even when the newer one could not tell (`nil`).
+    /// Dropping an answer only ever leaves the cached value in place, which
+    /// is the same thing `nil` does, so it can never downgrade anybody.
     func refresh() async {
         refreshesStarted += 1
         let ticket = refreshesStarted
         guard let owned = await source.isOwned(StoreProduct.fullUnlock),
-              ticket > newestApplied else { return }
-        newestApplied = ticket
+              ticket == refreshesStarted else { return }
         isUnlocked = owned
         defaults.set(owned, forKey: Key.unlocked)
     }
@@ -162,6 +161,10 @@ final class EntitlementStore {
         do {
             switch try await source.purchase(StoreProduct.fullUnlock) {
             case .purchased:
+                // A verified transaction for this product: unlock now rather
+                // than waiting on an enumeration that may come back unknown.
+                isUnlocked = true
+                defaults.set(true, forKey: Key.unlocked)
                 purchaseState = .idle
                 await refresh()
             case .awaitingApproval:

@@ -17,6 +17,9 @@ struct HomeView: View {
     /// Play while a standard game is saved asks first: the new board takes
     /// that slot as soon as the player makes a move on it.
     @State private var confirmingNewGame = false
+    /// Today's daily over an unfinished one from an earlier day: the daily
+    /// slot holds one game, so ask, as Play does for the standard slot.
+    @State private var confirmingDaily: DayKey?
     /// Suppresses the size gate while the pickers are being restored — see
     /// `restorePickers()`.
     @State private var isRestoring = false
@@ -52,7 +55,8 @@ struct HomeView: View {
                     }
                     // Today's daily resumes from the Daily card. An unfinished
                     // daily from an earlier day has nowhere else to go.
-                    if let saved = progress.savedGame(.daily), saved.dailyKey != today {
+                    if let saved = progress.savedGame(.daily), let day = saved.dailyKey,
+                       day != today, !progress.hasCompletedDaily(day) {
                         continueCard(.daily, saved)
                     }
 
@@ -107,6 +111,9 @@ struct HomeView: View {
         if let saved = progress.savedGame(.daily), saved.dailyKey == day,
            !progress.hasCompletedDaily(day) {
             path.append(.resume(.daily))
+        } else if let earlier = progress.savedGame(.daily)?.dailyKey, earlier != day,
+                  !progress.hasCompletedDaily(earlier), !progress.hasCompletedDaily(day) {
+            confirmingDaily = earlier
         } else {
             path.append(.daily(day))
         }
@@ -348,6 +355,17 @@ struct HomeView: View {
             #if os(tvOS)
             .focused($homeFocus, equals: .play)
             #endif
+            .confirmationDialog("Start today's Daily?",
+                                isPresented: Binding(get: { confirmingDaily != nil },
+                                                     set: { if !$0 { confirmingDaily = nil } }),
+                                titleVisibility: .visible) {
+                Button("Today's Daily") { path.append(.daily(clock.today)) }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                if let earlier = confirmingDaily {
+                    Text("Your unfinished Daily from \(earlier.date().formatted(.dateTime.month(.wide).day())) is replaced once you enter something on today's.")
+                }
+            }
             .confirmationDialog("Start a new game?", isPresented: $confirmingNewGame,
                                 titleVisibility: .visible) {
                 Button("New game", role: .destructive) { startNewGame() }

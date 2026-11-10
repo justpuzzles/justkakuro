@@ -118,6 +118,7 @@ struct GameLoaderView: View {
                                    dailyKey: dailyKey)
             if progress.settings.autoNotes {
                 fresh.fillAutoNotes()
+                fresh.markBaseline()
             }
             game = fresh
         }

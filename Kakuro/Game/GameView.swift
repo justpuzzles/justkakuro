@@ -34,6 +34,10 @@ struct GameView: View {
     /// Set when the win was a daily already solved: nothing was recorded,
     /// and the sheet says so and shows the first time.
     @State private var replayOf: TimeInterval?
+    /// This game has taken its slot. From then on it keeps saving even with
+    /// no moves on the board: undoing back to empty used to leave the slot
+    /// holding an older snapshot.
+    @State private var ownsSlot = false
     /// Presented once the win sheet is gone: two sheets cannot be up at once,
     /// and the paywall is rooted above the NavigationStack.
     @State private var pendingPaywall: PaidFeature?
@@ -173,10 +177,13 @@ struct GameView: View {
         .sheet(isPresented: $showWinSheet, onDismiss: {
             if let feature = pendingPaywall {
                 pendingPaywall = nil
+                // Rooted above the NavigationStack, so it presents over Home.
                 paywall.present(feature)
-            } else if game.phase == .won {
-                // Done and a swipe down both end here. A swipe used to leave
-                // the player on a solved board with nothing left to do.
+            }
+            // Done, a swipe down and "See what's included" all end here, and
+            // all leave the game: there is nothing left to do on a solved
+            // board, and a swipe used to strand the player on one.
+            if game.phase == .won {
                 dismiss()
             }
         }) { winSheet }
@@ -190,10 +197,13 @@ struct GameView: View {
                 } onApply: {
                     // Consumed by handleEntriesChange: the placement this makes
                     // is the hint's work, not the player's.
-                    // Only when it really placed something: a no-op Apply
-                    // left the flag set, and the player's next genuine entry
-                    // then earned no mastery credit.
-                    appliedHint = game.apply(hint.application)
+                    // Only when it placed a digit. The flag is consumed by the
+                    // next change to entries, so a no-op Apply, or one that
+                    // only removed candidates, left it set and the player's
+                    // next genuine entry earned no mastery credit.
+                    let entriesBefore = game.board.entries
+                    game.apply(hint.application)
+                    appliedHint = game.board.entries != entriesBefore
                     self.hint = nil
                 } onDismiss: {
                     self.hint = nil
@@ -413,7 +423,12 @@ struct GameView: View {
     /// already, so it always saves.
     private func persist() {
         guard game.phase != .won else { return }
-        progress.saveGame(game.snapshot, hasProgress: resumed || game.hasMoves)
+        // Replaying a solved daily is just for fun: it can't count, so it
+        // takes no slot (it would only resurface as a Continue card for a
+        // daily that can never be recorded).
+        if let day = game.dailyKey, progress.hasCompletedDaily(day) { return }
+        if resumed || game.hasMoves { ownsSlot = true }
+        progress.saveGame(game.snapshot, hasProgress: ownsSlot)
     }
 
     /// Free players keep the error check ("something here is wrong"); the
@@ -553,7 +568,7 @@ struct GameView: View {
         var spoken = "Solved in \(TimeFormatting.spoken(game.elapsed))"
             + (newBestTime ? ", a new best time." : ".")
         if let first = replayOf {
-            spoken += " Already solved today in \(TimeFormatting.spoken(first)), so this one is not counted."
+            spoken += " Already solved in \(TimeFormatting.spoken(first)), so this one is not counted."
         }
         if game.dailyKey != nil {
             spoken += " \(streak) day streak."

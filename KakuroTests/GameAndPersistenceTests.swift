@@ -222,6 +222,33 @@ import Testing
         #expect(ProgressStore(userDefaults: defaults).savedGame(.daily) != nil)
     }
 
+    /// With Auto notes on, a fresh board has notes and an undo entry before
+    /// the player touches it. That is not progress.
+    @Test func autoNotesOnAFreshBoardAreNotProgress() {
+        let game = makeGame()
+        game.fillAutoNotes()
+        game.markBaseline()
+        #expect(!game.hasMoves)
+        game.tap(GridPosition(row: 1, col: 1))
+        game.enter(1)
+        #expect(game.hasMoves)
+    }
+
+    /// Both slots holding a daily after a 1.1 build ran over 1.2: the later
+    /// day wins, and the older never overwrites it.
+    @Test func theMigrationKeepsTheLaterDaily() throws {
+        let defaults = isolatedDefaults()
+        let newer = dailyGame(DayKey(year: 2026, month: 11, day: 10))
+        newer.tap(GridPosition(row: 1, col: 1)); newer.enter(1)
+        let older = dailyGame(DayKey(year: 2026, month: 11, day: 8))
+        older.tap(GridPosition(row: 1, col: 1)); older.enter(2)
+        defaults.set(try JSONEncoder().encode(newer.snapshot), forKey: "kakuro.saveGame.daily.v1")
+        defaults.set(try JSONEncoder().encode(older.snapshot), forKey: "kakuro.saveGame.v1")
+        let store = ProgressStore(userDefaults: defaults)
+        #expect(store.savedGame(.daily)?.dailyKey == DayKey(year: 2026, month: 11, day: 10))
+        #expect(store.savedGame(.standard) == nil)
+    }
+
     @Test func theIntroShowsOnlyBeforeAnyPlayAndStaysDismissed() {
         let defaults = isolatedDefaults()
         let store = ProgressStore(userDefaults: defaults)

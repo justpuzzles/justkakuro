@@ -6,15 +6,21 @@ import Observation
 enum GameSlot: String, Hashable, Sendable, CaseIterable {
     case standard
     case daily
+
+    /// The one place the rule lives: a game with a day is a daily.
+    init(dailyKey: DayKey?) {
+        self = dailyKey == nil ? .standard : .daily
+    }
 }
 
 /// The result of recording a solve, for the win sheet.
 struct SolveResult: Equatable {
-    /// False for a daily that was already solved: nothing was recorded.
-    var counted: Bool
     var newBestTime: Bool
-    /// For a replayed daily, the time of the first solve.
+    /// Set for a daily that was already solved: nothing was recorded, and
+    /// this is the time of the first solve.
     var firstDailyTime: TimeInterval?
+
+    var counted: Bool { firstDailyTime == nil }
 }
 
 @Observable @MainActor
@@ -88,8 +94,15 @@ final class ProgressStore {
         // 1.1 kept a daily in the one slot there was. Move it to its own, or
         // it would show as the standard Continue game and be overwritten by
         // the next standard game.
-        if saves[.standard]?.dailyKey != nil {
-            saves.move(from: .standard, to: .daily)
+        // If the daily slot is taken too (a 1.1 build ran after 1.2), the
+        // later day wins and the other is dropped rather than overwriting
+        // blindly.
+        if let legacyDay = saves[.standard]?.dailyKey {
+            if let existing = saves[.daily]?.dailyKey, !(existing < legacyDay) {
+                saves.clear(.standard)
+            } else {
+                saves.move(from: .standard, to: .daily)
+            }
         }
     }
 
@@ -149,11 +162,11 @@ final class ProgressStore {
         if let day {
             let outcome = recordDailyCompleted(day: day, time: time)
             if case .replay(let first) = outcome {
-                return SolveResult(counted: false, newBestTime: false, firstDailyTime: first)
+                return SolveResult(newBestTime: false, firstDailyTime: first)
             }
         }
         let best = recordSolve(size: size, difficulty: difficulty, time: time)
-        return SolveResult(counted: true, newBestTime: best, firstDailyTime: nil)
+        return SolveResult(newBestTime: best, firstDailyTime: nil)
     }
 
     // MARK: - Daily streak (PuzzleKit's DailyRecord, under the 1.1 key)
