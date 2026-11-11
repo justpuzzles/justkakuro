@@ -213,7 +213,7 @@
 			mainGroup = 7AC24A512E35D8C000111972;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				A1C0FFEE0000000000000001 /* XCLocalSwiftPackageReference "../PuzzleKit" */,
+				A1C0FFEE0000000000000001 /* XCRemoteSwiftPackageReference "PuzzleKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7AC24A5B2E35D8C000111972 /* Products */;
@@ -626,16 +626,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-/* Begin XCLocalSwiftPackageReference section */
-		A1C0FFEE0000000000000001 /* XCLocalSwiftPackageReference "../PuzzleKit" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../PuzzleKit;
+/* Begin XCRemoteSwiftPackageReference section */
+		A1C0FFEE0000000000000001 /* XCRemoteSwiftPackageReference "PuzzleKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/justpuzzles/PuzzleKit";
+			requirement = {
+				kind = revision;
+				revision = 0fe4615801bb1dde3ffb4cc88d617a0848be5fcf;
+			};
 		};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		A1C0FFEE0000000000000002 /* PuzzleKit */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = A1C0FFEE0000000000000001 /* XCRemoteSwiftPackageReference "PuzzleKit" */;
 			productName = PuzzleKit;
 		};
 /* End XCSwiftPackageProductDependency section */

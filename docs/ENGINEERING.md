@@ -75,7 +75,7 @@ One non-consumable, `de.kaikunze.kakuro.full`, $4.99. No ads, no subscription. A
 - The fallback path (budget exhausted) ships **pre-verified solution grids**, three per size, not a template plus repair. Searching there is the wrong tool: a Kakuro fill is almost never unique, so the old template loop could churn ~14s on medium and still return an ambiguous board. `bakedFallbacksAreUniqueAndSolvable` re-proves the shipped grids
 - Native -O timings: small ~0.03s, medium ~0.3s, large 1–2s (worst ~7s). Debug simulator is ~5x slower — perf-test budgets account for that
 - Fast engine iteration without the simulator: compile the engine into a CLI binary —
-  `swiftc -O -o bench Kakuro/Engine/*.swift ../PuzzleKit/Sources/PuzzleKit/*.swift main.swift` (Engine has no UIKit/SwiftUI imports; keep it that way. Since 1.2 `DayKey` comes from PuzzleKit, so its sources go in the same module; `DailySeed.swift` imports it behind `#if canImport(PuzzleKit)`). Write benchmark output to stderr (stdout is block-buffered under a pipe)
+  `swiftc -O -o bench Kakuro/Engine/*.swift "$(tools/puzzlekit-sources.sh)"/*.swift main.swift` (Engine has no UIKit/SwiftUI imports; keep it that way. Since 1.2 `DayKey` comes from PuzzleKit, so its sources go in the same module; `DailySeed.swift` imports it behind `#if canImport(PuzzleKit)`). Write benchmark output to stderr (stdout is block-buffered under a pipe)
 
 ## Actor isolation in `Kakuro/Design/`
 
@@ -167,15 +167,17 @@ Ported from Hashi (`Engine/DailySeed.swift`). Every player gets the same board f
 
 ## PuzzleKit and the 1.2 save model
 
-1.2 is the first game on `../PuzzleKit`, the family's shared local package
-(its README lists what is in v0). It is linked through an
-`XCLocalSwiftPackageReference` in `project.pbxproj`, the one project edit a
-synchronized root group can't make for you, and re-exported once in
+1.2 is the first game on PuzzleKit, the family's shared package
+(github.com/justpuzzles/PuzzleKit; its README lists what is in v0). It is
+linked through an `XCRemoteSwiftPackageReference` pinned to a revision
+(`Package.resolved`), the one project edit a synchronized root group can't
+make for you, and re-exported once in
 `App/PuzzleKitExports.swift`, so app files and `@testable import Kakuro` tests
 see `DayKey`, `DailyRecord`, `SaveSlots`, `TodayClock` and `DailyShare` without
-importing anything. **A fresh clone of kkai/justkakuro needs `PuzzleKit`
-checked out beside it**; until PuzzleKit has a remote, the GitHub repo alone
-does not build.
+importing anything. A plain clone builds; Xcode fetches the kit. To change
+the kit and a game together, drag a local `../PuzzleKit` into the project
+(a local package overrides the remote one) and set `PUZZLEKIT=../PuzzleKit`
+for the bench, then push the kit and bump the pinned revision.
 
 - **Two save slots.** `GameSlot.standard` keeps the 1.1 key
   `kakuro.saveGame.v1` (a downgrade still finds the game); `.daily` is

@@ -1,0 +1,14 @@
+{
+  "originHash" : "7f8e1254846f4ad58ebb54c7257e413abb7871e97c0097a67e7b1743c6e3ba9e",
+  "pins" : [
+    {
+      "identity" : "puzzlekit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/justpuzzles/PuzzleKit",
+      "state" : {
+        "revision" : "0fe4615801bb1dde3ffb4cc88d617a0848be5fcf"
+      }
+    }
+  ],
+  "version" : 3
+}

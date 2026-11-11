@@ -41,11 +41,11 @@ says so.
 ## Building
 
 Kakuro uses [PuzzleKit](https://github.com/justpuzzles/PuzzleKit), the shared
-puzzle package, as a local package at `../PuzzleKit`. Clone both side by side:
+puzzle package, as a Swift package pinned to a revision; Xcode fetches it, so a
+plain clone builds:
 
 ```
 git clone https://github.com/justpuzzles/justkakuro.git kakuro
-git clone https://github.com/justpuzzles/PuzzleKit.git PuzzleKit
 cd kakuro
 ```
 
