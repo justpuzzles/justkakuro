@@ -632,7 +632,7 @@
 			repositoryURL = "https://github.com/justpuzzles/PuzzleKit";
 			requirement = {
 				kind = revision;
-				revision = 0fe4615801bb1dde3ffb4cc88d617a0848be5fcf;
+				revision = 39cb7a49bf9f114ee9c821b8e37ffbbc1913724c;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
